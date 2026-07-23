@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Roberto Hornero</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Phaser y Firebase (Versión 8 Compat) -->
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -19,14 +18,14 @@
         <div class="title-container">
             <h1 class="main-title">Roberto<br>Hornero</h1>
             <div class="character-container">
-                <img src="assets/img/roberto/rh-guitarra.jpg" alt="Roberto con Guitarra" class="img-guitarra">
+                <!-- ASEGURATE QUE SEA .png o .jpg SEGÚN TU ARCHIVO REAL -->
+                <img src="assets/img/roberto/rh-guitarra.png" alt="Roberto con Guitarra" class="img-guitarra">
                 <p class="patria-text">Construyendo mi pátria</p>
             </div>
         </div>
         
         <button id="btn-play-main" class="btn btn-blue btn-large">¡Jugar Ahora!</button>
 
-        <!-- RANKING NACIONAL EN INICIO -->
         <div class="dashboard-section">
             <div class="dash-column">
                 <h3>🏆 Top 3 Nacional</h3>
@@ -38,7 +37,6 @@
             </div>
         </div>
 
-        <!-- VOTACIÓN EN INICIO -->
         <div class="voting-section">
             <h3>🗳️ Próximos Destinos</h3>
             <p>Votá dónde construirá Roberto su próximo nido</p>
@@ -62,16 +60,13 @@
             <div class="map-container">
                 <img src="assets/img/ui/argentina-map.png" alt="Mapa de Argentina" class="argentina-map">
             </div>
-            <div id="provinces-grid" class="provinces-list">
-                <!-- Se inyecta desde JS clasificado por regiones -->
-            </div>
+            <div id="provinces-grid" class="provinces-list"></div>
         </div>
         <button id="btn-back-menu" class="btn btn-orange" style="margin-top:20px;">Volver al Menú</button>
     </div>
 
     <!-- PANTALLA 3: EL JUEGO (PHASER) -->
     <div id="game-container">
-        <!-- Control de Música Flotante -->
         <button id="btn-toggle-music" class="music-btn">🔊 Música ON</button>
     </div>
 
@@ -110,9 +105,7 @@
         <div class="modal-content">
             <h3>Ingresa tus datos</h3>
             <input type="text" id="player-name" placeholder="Tu Nombre" class="input-form">
-            <select id="player-province" class="input-form">
-                <!-- Se llena dinámicamente en JS -->
-            </select>
+            <select id="player-province" class="input-form"></select>
             <button id="btn-confirm-save" class="btn btn-blue">Guardar y ver Ranking</button>
         </div>
     </div>
@@ -125,6 +118,11 @@
             <button id="btn-close-podium" class="btn btn-orange">Cerrar</button>
         </div>
     </div>
+
+    <canvas id="cert-canvas" style="display:none;"></canvas>
+    <script src="game.js"></script>
+</body>
+</html>
 
     <canvas id="cert-canvas" style="display:none;"></canvas>
     <script src="game.js"></script>
