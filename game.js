@@ -1,14 +1,17 @@
-const firebaseConfig = {
-    apiKey: "AIzaSyB8bRUNCpopv-cdpGmGwFnxh0dAvt8NHQg",
-    authDomain: "roberto-hornero.firebaseapp.com",
-    databaseURL: "https://roberto-hornero-default-rtdb.firebaseio.com",
-    projectId: "roberto-hornero",
-    storageBucket: "roberto-hornero.firebasestorage.app",
-    messagingSenderId: "784475548449",
-    appId: "1:784475548449:web:873049cedc8445ff50ac60"
-};
-firebase.initializeApp(firebaseConfig);
-const database = firebase.database();
+// 1. SOLUCIÓN FIREBASE: Solo inicializa si no existe previamente
+if (!firebase.apps.length) {
+    var firebaseConfig = {
+        apiKey: "AIzaSyB8bRUNCpopv-cdpGmGwFnxh0dAvt8NHQg",
+        authDomain: "roberto-hornero.firebaseapp.com",
+        databaseURL: "https://roberto-hornero-default-rtdb.firebaseio.com",
+        projectId: "roberto-hornero",
+        storageBucket: "roberto-hornero.firebasestorage.app",
+        messagingSenderId: "784475548449",
+        appId: "1:784475548449:web:873049cedc8445ff50ac60"
+    };
+    firebase.initializeApp(firebaseConfig);
+}
+var database = firebase.database();
 
 const REGIONS_DATA = [
     {
@@ -65,10 +68,10 @@ let shotsFired = 0; let dronesDestroyed = 0; let nestDamage = 0;
 let game; let gameScene; let currentProv;
 let isAiming = false; let dragStartX, dragStartY; let aimGraphics;
 let mateInterval; let mateEnergyLoad = 0;
-let bgMusic; let isMusicPlaying = true;
+let bgMusic; let isMusicPlaying = false;
 
 document.addEventListener("DOMContentLoaded", () => {
-    loadStartDashboards(); // Ahora tiene protección contra bases vacías
+    loadStartDashboards();
     renderProvincesList();
     populateSelectProvinces();
 
@@ -106,22 +109,9 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("btn-confirm-save").addEventListener("click", saveScore);
     document.getElementById("btn-download-cert").addEventListener("click", downloadCertificate);
     
-    document.getElementById("btn-share-wa").addEventListener("click", () => {
-        const playerName = document.getElementById("player-name").value || "Un amigo";
-        const msg = `¡Ayuda a Roberto Hornero! Soy ${playerName} y acabo de sumar ${totalAccumulatedScore} puntos construyendo nidos por toda la Argentina. ¡Entrá a jugar y superá mi puntaje! https://juanterere.github.io/juego-roberto-hornero/`;
-        window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`, '_blank');
-    });
-
+    // Función de música desactivada temporalmente hasta arreglar el archivo
     document.getElementById("btn-toggle-music").addEventListener("click", () => {
-        if (!bgMusic) return;
-        isMusicPlaying = !isMusicPlaying;
-        if (isMusicPlaying) { 
-            bgMusic.resume(); 
-            document.getElementById("btn-toggle-music").innerText = "🔊 Música ON"; 
-        } else { 
-            bgMusic.pause(); 
-            document.getElementById("btn-toggle-music").innerText = "🔇 Música OFF"; 
-        }
+        alert("Audio deshabilitado temporalmente para pruebas.");
     });
 });
 
@@ -174,7 +164,6 @@ function populateSelectProvinces() {
     }));
 }
 
-// PROTECCIÓN: Si la base está vacía, no se rompe
 function loadStartDashboards() {
     database.ref("ranking").once("value", snap => {
         let allScores = [];
@@ -248,30 +237,21 @@ function preload() {
     this.load.image('rh_lanza2', 'assets/img/roberto/rh-lanza2.png');
     this.load.image('rh_lanza3', 'assets/img/roberto/rh-lanza3.png');
     
-    // Nido
     for(let i=1; i<=6; i++) {
         this.load.image(`nest_${i}`, `assets/img/game/Hornero${i+1}.png`);
     }
     
-    this.load.image('drone', 'assets/img/game/dron-mosca.png');
-    this.load.image('proyectil_barro', 'assets/img/game/barro1.png');
-    this.load.image('huevo', 'assets/img/game/huevo.png');
+    // 2. SOLUCIÓN ARCHIVOS: Nombres corregidos según tus imágenes reales
+    this.load.image('drone', 'assets/img/game/drone-de.png');
+    this.load.image('proyectil_barro', 'assets/img/game/proyectil-barro.png');
 
-    this.load.audio('milonga', 'assets/audio/milonga-rh.mp3');
+    // 3. SOLUCIÓN AUDIO: Comentado temporalmente para evitar que crashee el motor
+    // this.load.audio('milonga', 'assets/audio/milonga-rh.mp3');
 }
 
 function create() {
     gameScene = this;
     let bg = this.add.image(500, 350, 'bg').setDisplaySize(1000, 700);
-
-    try {
-        if(!bgMusic) {
-            bgMusic = this.sound.add('milonga', { loop: true, volume: 0.5 });
-        }
-        if(isMusicPlaying && !bgMusic.isPlaying) bgMusic.play();
-    } catch(e) {
-        console.log("Audio bloqueado por navegador", e);
-    }
 
     this.nest = this.physics.add.staticImage(850, 450, 'nest_1').setScale(0.8);
     this.roberto = this.physics.add.sprite(150, 620, 'rh_conpala').setScale(0.08);
@@ -279,7 +259,6 @@ function create() {
     
     this.drones = this.physics.add.group();
     this.proyectiles = this.physics.add.group({ defaultKey: 'proyectil_barro' });
-    this.huevos = this.physics.add.group();
 
     this.scoreText = this.add.text(20, 20, 'Puntos: 0', { fontSize: '24px', fill: '#fff', backgroundColor: '#000' });
     this.energyText = this.add.text(20, 60, 'Energía: 100%', { fontSize: '24px', fill: '#fff', backgroundColor: '#000' });
@@ -306,7 +285,6 @@ function create() {
         if (!isAiming) return;
         isAiming = false; aimGraphics.clear();
 
-        // ANIMACIÓN CORREGIDA A PRUEBA DE FALLOS
         if (gameScene && gameScene.roberto) gameScene.roberto.setTexture('rh_lanza2');
         setTimeout(() => {
             if (gameScene && gameScene.roberto) {
@@ -321,9 +299,10 @@ function create() {
 
     this.time.addEvent({ delay: 3000, callback: spawnDrone, callbackScope: this, loop: true });
 
+    // Modificadas las físicas: Ahora los drones chocan directamente contra el nido o Roberto
     this.physics.add.overlap(this.proyectiles, this.drones, destroyDrone, null, this);
-    this.physics.add.overlap(this.huevos, this.nest, damageNest, null, this);
-    this.physics.add.overlap(this.huevos, this.roberto, damageRoberto, null, this);
+    this.physics.add.overlap(this.drones, this.nest, damageNest, null, this);
+    this.physics.add.overlap(this.drones, this.roberto, damageRoberto, null, this);
 }
 
 function fireMud(targetX, targetY) {
@@ -333,7 +312,7 @@ function fireMud(targetX, targetY) {
     let barro = gameScene.proyectiles.create(gameScene.roberto.x, gameScene.roberto.y - 10, 'proyectil_barro');
     barro.setScale(0.05);
     gameScene.physics.moveTo(barro, targetX, targetY, 500);
-    barro.setGravityY(-300); // Cancela gravedad global
+    barro.setGravityY(-300); 
 
     setTimeout(() => { if(barro && barro.active) barro.destroy(); }, 3000);
 }
@@ -343,19 +322,8 @@ function spawnDrone() {
     let x = Phaser.Math.Between(400, 950);
     let drone = gameScene.drones.create(x, 50, 'drone').setScale(0.1);
     drone.setVelocityX(Phaser.Math.Between(-100, 100));
-    drone.setVelocityY(Phaser.Math.Between(20, 50));
-    drone.setGravityY(-300);
-
-    gameScene.time.addEvent({
-        delay: Phaser.Math.Between(2000, 4000),
-        callback: () => {
-            if (drone && drone.active) {
-                let huevo = gameScene.huevos.create(drone.x, drone.y + 20, 'huevo').setScale(0.05);
-                huevo.setVelocityY(150);
-            }
-        },
-        callbackScope: gameScene
-    });
+    drone.setVelocityY(Phaser.Math.Between(50, 100)); // Caen hacia abajo
+    drone.setGravityY(-250); // Gravedad ajustada para que floten
 }
 
 function destroyDrone(barro, drone) {
@@ -365,15 +333,15 @@ function destroyDrone(barro, drone) {
     checkNestUpgrade();
 }
 
-function damageNest(huevo, nest) {
-    huevo.destroy();
+function damageNest(drone, nest) {
+    drone.destroy(); // El dron se destruye al chocar
     nestDamage++;
     if(sessionScore > 0) sessionScore -= 5;
     updateHUD();
 }
 
-function damageRoberto(huevo, roberto) {
-    huevo.destroy();
+function damageRoberto(drone, roberto) {
+    drone.destroy(); // El dron se destruye al chocar
     energy = Math.max(0, energy - 15);
     updateHUD();
     if(energy <= 0) triggerMateBreak();
@@ -435,9 +403,6 @@ function update() {
     this.drones.children.iterate((d) => {
         if(d && (d.y > 700 || d.x < 0 || d.x > 1000)) d.destroy();
     });
-    this.huevos.children.iterate((h) => {
-        if(h && h.y > 700) h.destroy();
-    });
 }
 
 function endGameSuccess() {
@@ -470,7 +435,6 @@ function saveScore() {
     
     alert("¡Puntaje Guardado!");
     document.getElementById("save-data-modal").classList.remove("active");
-    if(bgMusic) bgMusic.stop();
     if(game) game.destroy(true);
     loadStartDashboards();
     showScreen("start-screen");
