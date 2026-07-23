@@ -3,128 +3,181 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Roberto Hornero</title>
+    <title>Roberto Hornero - Construyendo Patria</title>
+
+    <!-- Meta para que se vea bien al compartir (WhatsApp, redes) -->
+    <meta property="og:title" content="Roberto Hornero - Construyendo Patria 🇦🇷">
+    <meta property="og:description" content="Ayudá a Roberto Hornero a construir su nido por toda Argentina. ¡Apuntá, lanzá barro y hacé puntos!">
+    <meta property="og:image" content="assets/escenarios/obelisco-bs-as.png">
+    <meta property="og:type" content="website">
+    <meta name="theme-color" content="#74acdf">
+
     <link rel="stylesheet" href="style.css">
-    <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <!-- Phaser 3 CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.0/dist/phaser.min.js"></script>
+
+    <!-- Firebase SDKs (v10 COMPAT) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 </head>
 <body>
 
-    <!-- PANTALLA 1: INICIO -->
-    <div id="start-screen" class="screen active">
-        <p class="subtitle">Ayuda a Roberto Hornero a construir su nido por toda la Argentina</p>
-        
-        <div class="title-container">
-            <h1 class="main-title">Roberto<br>Hornero</h1>
-            <div class="character-container">
-                <!-- ASEGURATE QUE SEA .png o .jpg SEGÚN TU ARCHIVO REAL -->
-                <img src="assets/img/roberto/rh-guitarra.png" alt="Roberto con Guitarra" class="img-guitarra">
-                <p class="patria-text">Construyendo mi pátria</p>
+    <!-- Botón de música, siempre visible -->
+    <button id="btn-toggle-music" class="music-btn">🔊</button>
+
+    <!-- Contenedor del juego (Phaser) -->
+    <div id="game-container"></div>
+
+    <div id="ui-container">
+
+        <!-- PANTALLA DE INICIO -->
+        <div id="start-screen" class="screen active">
+            <div class="hero-section">
+                <img src="assets/img/roberto/rh-conpala.png" alt="Roberto Hornero" class="rh-hero-img">
+                <span class="game-tagline">Construyendo Patria</span>
+                <h1 class="game-title">Roberto Hornero</h1>
+                <p class="subtitle">¡Ayudá a Roberto Hornero a construir su nido por toda la Argentina!</p>
+            </div>
+
+            <div class="main-action">
+                <button id="btn-play-main" class="btn-primary btn-xl">🏗️ CONSTRUIR</button>
+            </div>
+
+            <button id="btn-open-campaign" class="btn-mate-lg">🧉 Ayudanos a seguir construyendo</button>
+
+            <div class="dashboard-section">
+                <div class="dash-column">
+                    <h3>🏆 Top 3 Nacional</h3>
+                    <div id="start-national-ranking" class="dash-list">Cargando...</div>
+                </div>
+                <div class="dash-column">
+                    <h3>📍 Provincias más jugadas</h3>
+                    <div id="start-prov-ranking" class="dash-list">Cargando...</div>
+                </div>
+            </div>
+
+            <hr class="divider">
+
+            <div class="community-vote-section">
+                <h3>¿Qué provincia tenemos que visitar? ¡Votá!</h3>
+                <div class="vote-cards-container">
+                    <div class="vote-card">
+                        <h4>Santa Fe</h4>
+                        <button class="btn-vote" data-prov="Santa Fe">🗳️ Votar</button>
+                    </div>
+                    <div class="vote-card">
+                        <h4>Misiones</h4>
+                        <button class="btn-vote" data-prov="Misiones">🗳️ Votar</button>
+                    </div>
+                    <div class="vote-card">
+                        <h4>Chubut</h4>
+                        <button class="btn-vote" data-prov="Chubut">🗳️ Votar</button>
+                    </div>
+                </div>
+                <div class="vote-footer-actions">
+                    <button id="btn-view-podium" class="btn-secondary">📊 Ver Votos</button>
+                </div>
             </div>
         </div>
-        
-        <button id="btn-play-main" class="btn btn-blue btn-large">¡Jugar Ahora!</button>
 
-        <div class="dashboard-section">
-            <div class="dash-column">
-                <h3>🏆 Top 3 Nacional</h3>
-                <div id="start-national-ranking">Cargando...</div>
-            </div>
-            <div class="dash-column">
-                <h3>📍 Provincias más jugadas</h3>
-                <div id="start-prov-ranking">Cargando...</div>
-            </div>
-        </div>
-
-        <div class="voting-section">
-            <h3>🗳️ Próximos Destinos</h3>
-            <p>Votá dónde construirá Roberto su próximo nido</p>
-            <div class="voting-buttons">
-                <button class="btn btn-yellow btn-vote" data-prov="Santa Fe">Santa Fe</button>
-                <button class="btn btn-yellow btn-vote" data-prov="Chubut">Chubut</button>
-                <button class="btn btn-yellow btn-vote" data-prov="Misiones">Misiones</button>
-            </div>
-            <button id="btn-view-podium" class="btn btn-orange btn-small">Ver Votación</button>
-        </div>
-
-        <div class="social-buttons">
-            <a href="https://link.mercadopago.com.ar/matiasbrizzio" target="_blank" class="btn btn-green">Matecito (Apoyar)</a>
-        </div>
-    </div>
-
-    <!-- PANTALLA 2: SELECCIÓN DE PROVINCIA -->
-    <div id="province-screen" class="screen">
-        <h2>Elegí tu Provincia</h2>
-        <div class="layout-provinces">
-            <div class="map-container">
-                <img src="assets/img/ui/argentina-map.png" alt="Mapa de Argentina" class="argentina-map">
-            </div>
+        <!-- SELECCIÓN DE PROVINCIA -->
+        <div id="province-screen" class="screen">
+            <h2>Elegí una Provincia</h2>
+            <p class="how-to-play">🎯 Arrastrá desde Roberto hacia atrás y soltá para lanzar el barro al nido, ¡como una honda!</p>
             <div id="provinces-grid" class="provinces-list"></div>
+            <button id="btn-back-menu" class="btn-secondary" style="margin-top:20px;">⬅️ Volver al Menú</button>
         </div>
-        <button id="btn-back-menu" class="btn btn-orange" style="margin-top:20px;">Volver al Menú</button>
-    </div>
 
-    <!-- PANTALLA 3: EL JUEGO (PHASER) -->
-    <div id="game-container">
-        <button id="btn-toggle-music" class="music-btn">🔊 Música ON</button>
-    </div>
-
-    <!-- UI DEL JUEGO: MODAL DEL MATE -->
-    <div id="mate-break-screen" class="screen modal-overlay">
-        <div class="mate-box">
-            <h2>¡Hora de recargar energías!</h2>
-            <img id="mate-anim" src="assets/img/roberto/rh-mate1.png" width="150">
-            <div class="progress-bar-bg thick-bar">
-                <div id="energy-progress" class="progress-bar-fill"></div>
-            </div>
-            <p id="energy-text">0%</p>
-            <button id="btn-return-game" class="btn btn-orange">Volver al juego</button>
-        </div>
-    </div>
-
-    <!-- MODAL FIN DE PARTIDA -->
-    <div id="game-over-modal" class="screen modal-overlay">
-        <div class="game-over-box">
-            <h2>¡Partida Terminada!</h2>
-            <div id="stars-result" class="stars-container"></div>
-            <p>Puntos de esta partida: <span id="current-score">0</span></p>
-            <p>Puntos Totales Acumulados: <span id="total-score">0</span></p>
-            
-            <div class="game-over-buttons">
-                <button id="btn-play-more" class="btn btn-blue">Sumar más puntos</button>
-                <button id="btn-save-score" class="btn btn-green">Guardar Puntaje</button>
-                <button id="btn-share-wa" class="btn btn-green">Compartir en WhatsApp</button>
-                <button id="btn-download-cert" class="btn btn-orange">Descargar Certificado</button>
+        <!-- MODAL CAMPAÑA MATECITO -->
+        <div id="campaign-modal" class="screen modal-overlay">
+            <div class="modal-content">
+                <h2>🧉 ¡Sumate a la Campaña!</h2>
+                <p>Roberto Hornero necesita tu ayuda para seguir recorriendo las provincias de Argentina. Con tu aporte, podemos seguir creando más niveles y personajes.</p>
+                <br>
+                <a href="https://link.mercadopago.com.ar/matiasbrizzio" target="_blank" class="btn-mate-lg" style="text-decoration: none;">Invitar un Matecito</a>
+                <button id="btn-close-campaign" class="btn-secondary" style="margin-top: 15px; width: 100%;">Cerrar</button>
             </div>
         </div>
-    </div>
 
-    <!-- MODAL GUARDAR DATOS -->
-    <div id="save-data-modal" class="screen modal-overlay">
-        <div class="modal-content">
-            <h3>Ingresa tus datos</h3>
-            <input type="text" id="player-name" placeholder="Tu Nombre" class="input-form">
-            <select id="player-province" class="input-form"></select>
-            <button id="btn-confirm-save" class="btn btn-blue">Guardar y ver Ranking</button>
+        <!-- MODAL PODIO VOTACIÓN -->
+        <div id="podium-modal" class="screen modal-overlay">
+            <div class="modal-content">
+                <h2>🏆 Votación de la Comunidad</h2>
+                <div class="podium-container">
+                    <div class="podium-step step-2">
+                        <div class="podium-badge">2°</div>
+                        <span id="podium-2nd-name" class="podium-prov-name">-</span>
+                        <span id="podium-2nd-votes" class="podium-votes-count">0 votos</span>
+                        <div class="podium-bar bar-2"></div>
+                    </div>
+                    <div class="podium-step step-1">
+                        <div class="podium-badge crown">👑 1°</div>
+                        <span id="podium-1st-name" class="podium-prov-name">-</span>
+                        <span id="podium-1st-votes" class="podium-votes-count">0 votos</span>
+                        <div class="podium-bar bar-1"></div>
+                    </div>
+                    <div class="podium-step step-3">
+                        <div class="podium-badge">3°</div>
+                        <span id="podium-3rd-name" class="podium-prov-name">-</span>
+                        <span id="podium-3rd-votes" class="podium-votes-count">0 votos</span>
+                        <div class="podium-bar bar-3"></div>
+                    </div>
+                </div>
+                <button id="btn-close-podium" class="btn-secondary" style="width:100%;">Cerrar</button>
+            </div>
         </div>
-    </div>
 
-    <!-- MODAL PODIO VOTACIÓN -->
-    <div id="podium-modal" class="screen modal-overlay">
-        <div class="modal-content">
-            <h2>Estado de la Votación</h2>
-            <div id="voting-results-list">Cargando...</div>
-            <button id="btn-close-podium" class="btn btn-orange">Cerrar</button>
+        <!-- PANTALLA DESCANSO MATE -->
+        <div id="mate-break-screen" class="screen modal-overlay">
+            <div class="mate-card">
+                <img id="mate-anim-img" src="assets/img/roberto/rh-mate1.png" alt="Roberto tomando mate" class="mate-anim-img">
+                <h2>🧉 Momento del Mate</h2>
+                <p>"Roberto Hornero está agotado. Necesita unos mates para seguir construyendo."</p>
+                <div class="loader-bar"><div id="loader-progress"></div></div>
+                <p id="energy-text" class="energy-text">Cebando mate...</p>
+            </div>
         </div>
+
+        <!-- MODAL FIN DE NIVEL -->
+        <div id="game-over-modal" class="screen modal-overlay">
+            <div class="modal-content">
+                <h2>¡Nido Completado! 🇦🇷✨</h2>
+                <div id="stars-result" class="stars-display">⭐⭐⭐</div>
+                <p id="accuracy-line" class="stat-line"></p>
+                <p>Puntaje de esta partida: <strong id="final-score">0</strong></p>
+                <p>Puntaje total acumulado: <strong id="total-score">0</strong></p>
+                <p id="best-combo-line" class="combo-line"></p>
+
+                <div class="game-over-buttons">
+                    <button id="btn-play-more" class="btn-primary">🏗️ Seguir Construyendo</button>
+                    <button id="btn-save-score" class="btn-secondary">💾 Guardar Puntaje</button>
+                    <button id="btn-share-score" class="btn-share">📲 Compartir en WhatsApp</button>
+                    <button id="btn-download-cert" class="btn-cert">🎖️ Descargar Certificado</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODAL GUARDAR DATOS -->
+        <div id="save-data-modal" class="screen modal-overlay">
+            <div class="modal-content">
+                <h3>Ingresá tus datos</h3>
+                <form id="score-form">
+                    <input type="text" id="player-name" placeholder="Tu Nombre o Apodo" required maxlength="15">
+                    <select id="player-province" required>
+                        <option value="" disabled selected>Seleccioná tu provincia</option>
+                    </select>
+                    <button type="submit" class="btn-primary">Guardar y ver Ranking</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- DERECHOS DE AUTOR -->
+        <div class="copyright">©Matías Brizzio</div>
     </div>
 
     <canvas id="cert-canvas" style="display:none;"></canvas>
-    <script src="game.js"></script>
-</body>
-</html>
 
-    <canvas id="cert-canvas" style="display:none;"></canvas>
     <script src="game.js"></script>
 </body>
 </html>
