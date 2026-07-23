@@ -1,82 +1,108 @@
-// --- 1. CONFIGURACIÓN FIREBASE ---
+// --- CONFIGURACIÓN FIREBASE (REEMPLAZA CON TUS DATOS) ---
 const firebaseConfig = {
-    apiKey: "AIzaSyB8bRUNCpopv-cdpGmGwFnxh0dAvt8NHQg",
-    authDomain: "roberto-hornero.firebaseapp.com",
-    databaseURL: "https://roberto-hornero-default-rtdb.firebaseio.com",
-    projectId: "roberto-hornero",
-    storageBucket: "roberto-hornero.firebasestorage.app",
-    messagingSenderId: "784475548449",
-    appId: "1:784475548449:web:873049cedc8445ff50ac60"
+    apiKey: "TU_API_KEY",
+    authDomain: "tu-proyecto.firebaseapp.com",
+    databaseURL: "https://tu-proyecto.firebaseio.com",
+    projectId: "tu-proyecto",
+    storageBucket: "tu-proyecto.firebasestorage.app",
+    messagingSenderId: "TU_SENDER",
+    appId: "TU_APP_ID"
 };
 
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 
-// --- 2. VARIABLES DEL JUEGO ---
+// --- DATOS Y VARIABLES GLOBALES ---
+let totalAccumulatedScore = 0; 
+let sessionScore = 0;
 let nestStage = 0; 
-let score = 0;
 let energy = 100;
 let shotsFired = 0;
+let dronesDestroyed = 0;
+let nestDamage = 0;
 
+let game;
+let gameScene;
+let currentProv;
+let isAiming = false;
+let dragStartX, dragStartY;
+let aimGraphics;
+let mateInterval;
+let mateEnergyLoad = 0;
+
+// Estado: habilitada, votacion, bloqueada
 const PROVINCES_DATA = [
-    { id: "tucuman", name: "Tucumán", status: "Disponible", bg: "casitade-tucuman.png" },
-    { id: "bsas", name: "Buenos Aires", status: "Disponible", bg: "obelisco-bs-as.png" },
-    { id: "cordoba", name: "Córdoba", status: "Disponible", bg: "catedral-de-cordoba.png" }
+    { id: "bsas", name: "Buenos Aires", status: "habilitada", bg: "obelisco-bs-as.png", icon: "🔓" },
+    { id: "tucuman", name: "Tucumán", status: "habilitada", bg: "casitade-tucuman.png", icon: "🔓" },
+    { id: "cordoba", name: "Córdoba", status: "votacion", bg: "catedral-de-cordoba.png", icon: "🟡" },
+    { id: "mendoza", name: "Mendoza", status: "bloqueada", bg: "", icon: "🔒" }
 ];
 
-// --- 3. LÓGICA DE INTERFAZ Y EVENTOS DOM ---
+// --- EVENTOS DOM ---
 document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("btn-play-main").addEventListener("click", () => showScreen("province-screen"));
     document.getElementById("btn-back-menu").addEventListener("click", () => showScreen("start-screen"));
     
-    document.getElementById("btn-open-campaign").addEventListener("click", () => {
-        document.getElementById("campaign-modal").classList.add("active");
-    });
-    document.getElementById("btn-close-campaign").addEventListener("click", () => {
-        document.getElementById("campaign-modal").classList.remove("active");
-    });
+    renderProvincesList();
 
-    const grid = document.getElementById("provinces-grid");
-    PROVINCES_DATA.forEach(prov => {
-        const card = document.createElement("div");
-        card.className = `prov-card ${prov.status === 'Disponible' ? 'active' : 'locked'}`;
-        card.innerHTML = `<h3>${prov.name}</h3><p>${prov.status}</p>`;
-        if (prov.status === 'Disponible') card.addEventListener("click", () => startGamePhaser(prov));
-        grid.appendChild(card);
-    });
-
-    document.querySelectorAll(".btn-vote").forEach(btn => {
-        btn.addEventListener("click", (e) => {
-            const provName = e.target.getAttribute("data-prov");
-            database.ref(`votacion/${provName}`).transaction(current => (current || 0) + 1);
-            lanzarConfetiCelesteYBlanco();
-            alert(`🎉 ¡Gracias por votar por ${provName}! 🇦🇷`);
-        });
-    });
-
-    document.getElementById("btn-view-votes").addEventListener("click", () => {
-        loadPodiumData();
-        showScreen("podium-screen");
-    });
-    document.getElementById("btn-back-from-podium").addEventListener("click", () => showScreen("start-screen"));
-
-    document.getElementById("score-form").addEventListener("submit", (e) => {
-        e.preventDefault();
-        database.ref("ranking").push({
-            nombre: document.getElementById("player-name").value,
-            provincia: document.getElementById("player-province").value,
-            puntaje: score,
-            fecha: new Date().toISOString()
-        });
-        showScreen("start-screen");
+    // Modales y Botones
+    document.getElementById("btn-close-vote").addEventListener("click", () => {
+        document.getElementById("vote-modal").classList.remove("active");
     });
     
-    loadRanking();
+    document.getElementById("btn-confirm-vote").addEventListener("click", () => {
+        document.getElementById("vote-modal").classList.remove("active");
+        lanzarConfetiCelesteYBlanco();
+        alert("¡Gracias por tu voto!");
+    });
+
+    // MATE BOTÓN
+    document.getElementById("btn-return-game").addEventListener("click", returnFromMate);
+
+    // FIN DE JUEGO BOTONES
+    document.getElementById("btn-play-more").addEventListener("click", () => {
+        document.getElementById("game-over-modal").classList.remove("active");
+        if (game) game.destroy(true);
+        showScreen("province-screen");
+    });
+
+    document.getElementById("btn-save-score").addEventListener("click", () => {
+        document.getElementById("game-over-modal").classList.remove("active");
+        document.getElementById("save-data-modal").classList.add("active");
+    });
+
+    document.getElementById("btn-download-cert").addEventListener("click", downloadCertificate);
+
+    // GUARDAR Y RANKING
+    document.getElementById("btn-confirm-save").addEventListener("click", saveAndShowRanking);
+    document.getElementById("btn-back-from-podium").addEventListener("click", () => showScreen("start-screen"));
+    document.getElementById("btn-view-votes").addEventListener("click", () => { loadRanking(); showScreen("podium-screen"); });
 });
 
 function showScreen(screenId) {
-    document.querySelectorAll(".screen").forEach(s => s.classList.remove("active"));
+    document.querySelectorAll(".screen:not(.modal-overlay)").forEach(s => s.classList.remove("active"));
     if (screenId) document.getElementById(screenId).classList.add("active");
+}
+
+function renderProvincesList() {
+    const list = document.getElementById("provinces-grid");
+    list.innerHTML = "";
+    PROVINCES_DATA.forEach(prov => {
+        const row = document.createElement("div");
+        row.className = `prov-row prov-${prov.status}`;
+        row.innerHTML = `<span>${prov.name}</span> <span>${prov.icon}</span>`;
+        
+        row.addEventListener("click", () => {
+            if (prov.status === "habilitada") startGamePhaser(prov);
+            if (prov.status === "votacion") showVoteModal(prov.name);
+        });
+        list.appendChild(row);
+    });
+}
+
+function showVoteModal(provName) {
+    document.getElementById("vote-prov-name").innerText = provName;
+    document.getElementById("vote-modal").classList.add("active");
 }
 
 function lanzarConfetiCelesteYBlanco() {
@@ -91,45 +117,16 @@ function lanzarConfetiCelesteYBlanco() {
     }
 }
 
-function loadPodiumData() {
-    database.ref("votacion").once("value", snapshot => {
-        const votes = snapshot.val() || {};
-        let sorted = Object.keys(votes).map(k => ({ prov: k, v: votes[k] })).sort((a, b) => b.v - a.v);
-        while (sorted.length < 3) sorted.push({ prov: "-", v: 0 });
-
-        document.getElementById("podium-1st-name").innerText = sorted[0].prov;
-        document.getElementById("podium-1st-votes").innerText = `${sorted[0].v} votos`;
-        document.getElementById("podium-2nd-name").innerText = sorted[1].prov;
-        document.getElementById("podium-2nd-votes").innerText = `${sorted[1].v} votos`;
-        document.getElementById("podium-3rd-name").innerText = sorted[2].prov;
-        document.getElementById("podium-3rd-votes").innerText = `${sorted[2].v} votos`;
-    });
-}
-
-function loadRanking() {
-    database.ref("ranking").orderByChild("puntaje").limitToLast(5).once("value", snap => {
-        const list = document.getElementById("ranking-list");
-        list.innerHTML = "";
-        let arr = [];
-        snap.forEach(c => arr.push(c.val()));
-        arr.reverse().forEach((item, i) => {
-            list.innerHTML += `<p>#${i + 1} <strong>${item.nombre}</strong>: ${item.puntaje} pts</p>`;
-        });
-    });
-}
-
-// --- 4. MOTOR PHASER 3 (EL JUEGO) ---
-let game;
-let gameScene;
-let currentProv;
-
+// --- MOTOR PHASER 3 ---
 function startGamePhaser(prov) {
     currentProv = prov;
     nestStage = 0;
-    score = 0;
+    sessionScore = 0;
     shotsFired = 0;
     energy = 100;
-    showScreen(null);
+    dronesDestroyed = 0;
+    nestDamage = 0;
+    showScreen("game-container");
 
     if (game) game.destroy(true);
 
@@ -138,16 +135,15 @@ function startGamePhaser(prov) {
         parent: "game-container",
         width: 1280,
         height: 720,
+        physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } },
         scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
         scene: { preload: preload, create: create, update: update }
     };
-
     game = new Phaser.Game(config);
 }
 
 function preload() {
     this.load.image('bg', `assets/escenarios/${currentProv.bg}`);
-    
     this.load.image('base_poste', 'assets/img/game/HorneroA.png');
     this.load.image('nest_1', 'assets/img/game/Hornero2.png');
     this.load.image('nest_2', 'assets/img/game/Hornero3.png');
@@ -162,124 +158,302 @@ function preload() {
     this.load.image('rh_lanza3', 'assets/img/roberto/rh-lanza3.png');
 
     this.load.image('proyectil_barro', 'assets/img/game/proyectil-barro.png');
-    this.load.image('estrella', 'assets/img/game/estrella.png');
+    this.load.image('drone-iz', 'assets/img/game/drone-iz.png');
+    this.load.image('drone-de', 'assets/img/game/drone-de.png');
+    
     this.load.image('estrella78', 'assets/img/game/estrella78.png');
     this.load.image('estrella86', 'assets/img/game/estrella86.png');
     this.load.image('estrella22', 'assets/img/game/estrella22.png');
-    
-    // ⚠️ Imagen del Dron (¡Asegurate de crear este archivo en la carpeta!)
-    this.load.image('dron', 'assets/img/game/drone.png');
 }
 
 function create() {
     gameScene = this;
+    this.add.image(640, 360, 'bg').setDisplaySize(1280, 720);
 
-    // Fondo
-    let bg = this.add.image(640, 360, 'bg').setDisplaySize(1280, 720);
-
-    // --- ESCALAS Y POSICIONES CORREGIDAS ---
-    // Roberto Hornero (Abajo a la izquierda). Bajamos mucho la escala (ej. 0.25)
-    this.roberto = this.add.image(250, 550, 'rh_conpala').setScale(0.25);
-
-    // Poste (Abajo a la derecha)
-    this.poste = this.add.image(1050, 600, 'base_poste').setScale(0.3);
+    // Escalas ajustadas
+    this.roberto = this.physics.add.sprite(200, 580, 'rh_conpala').setScale(0.15);
+    this.poste = this.add.image(1100, 600, 'base_poste').setScale(0.25);
+    this.nestSprite = this.add.image(1100, 480, 'nest_1').setScale(0.25).setVisible(false);
     
-    // Nido (Sobre el poste)
-    this.nestSprite = this.add.image(1050, 480, 'nest_1').setScale(0.3);
-    this.nestSprite.setVisible(false);
+    // HUD y Barra de Destrucción Nido
+    this.hudText = this.add.text(20, 20, '', { fontSize: '24px', fill: '#fff', backgroundColor: '#000', padding: 5 });
+    this.nestDamageBar = this.add.graphics();
+    updateHUD();
+    
+    aimGraphics = this.add.graphics();
+    this.proyectiles = this.physics.add.group();
+    this.dronesGroup = this.physics.add.group();
 
-    // HUD (Textos arriba)
-    this.hudText = this.add.text(20, 20, '🏗️ Etapa: 0/6 | ❤️ Energía: 100 | 🏆 Puntos: 0', { 
-        fontSize: '24px', fill: '#ffffff', backgroundColor: '#00000088', padding: { x: 10, y: 5 } 
+    this.physics.add.overlap(this.proyectiles, this.dronesGroup, (proyectil, dron) => {
+        proyectil.destroy();
+        dron.destroy();
+        dronesDestroyed++;
+        sessionScore += 50;
+        updateHUD();
     });
 
-    // Grupo para gestionar los drones
-    this.dronesGroup = this.add.group();
-
-    // Evento para generar un dron cada 3 segundos
-    this.time.addEvent({
-        delay: 3000,
-        callback: spawnDron,
-        callbackScope: this,
-        loop: true
-    });
-
+    // Control Apuntado
     this.input.on('pointerdown', (pointer) => {
-        if (document.querySelector(".screen.active:not(#ui-container)")) return;
-        fireMud();
+        if (energy <= 0 || shotsFired >= 10) return;
+        isAiming = true;
+        dragStartX = pointer.x;
+        dragStartY = pointer.y;
+        this.roberto.setTexture('rh_lanza1');
     });
+
+    this.input.on('pointermove', (pointer) => {
+        if (!isAiming) return;
+        aimGraphics.clear();
+        aimGraphics.lineStyle(4, 0xffffff, 0.8);
+        aimGraphics.lineBetween(this.roberto.x, this.roberto.y, this.roberto.x - (pointer.x - dragStartX), this.roberto.y - (pointer.y - dragStartY));
+    });
+
+    this.input.on('pointerup', (pointer) => {
+        if (!isAiming) return;
+        isAiming = false;
+        aimGraphics.clear();
+
+        this.roberto.setTexture('rh_lanza2');
+        setTimeout(() => this.roberto.setTexture('rh_lanza3'), 100);
+        setTimeout(() => this.roberto.setTexture('rh_conpala'), 300);
+
+        fireMud(pointer.x, pointer.y);
+    });
+
+    this.time.addEvent({ delay: 3500, callback: spawnDron, callbackScope: this, loop: true });
 }
 
-function update() {}
+function update() {
+    // Dibujar barra de daño del nido
+    gameScene.nestDamageBar.clear();
+    gameScene.nestDamageBar.fillStyle(0x000000, 0.8);
+    gameScene.nestDamageBar.fillRect(1050, 680, 100, 10);
+    gameScene.nestDamageBar.fillStyle(0xff0000, 1);
+    gameScene.nestDamageBar.fillRect(1050, 680, (nestDamage / 3) * 100, 10);
+}
+
+function fireMud(releaseX, releaseY) {
+    shotsFired++;
+    energy -= 10;
+    
+    let barro = gameScene.proyectiles.create(gameScene.roberto.x, gameScene.roberto.y - 20, 'proyectil_barro');
+    barro.setScale(0.5);
+    
+    let forceX = (dragStartX - releaseX) * 3;
+    let forceY = (dragStartY - releaseY) * 3;
+    barro.setVelocity(forceX, forceY);
+    barro.setGravityY(400);
+
+    setTimeout(() => {
+        if (barro.active && barro.x > 950 && barro.y > 400) {
+            construirNido();
+            barro.destroy();
+        }
+    }, 1200);
+
+    updateHUD();
+    if (shotsFired >= 10 || energy <= 0) triggerMateBreak();
+}
+
+function construirNido() {
+    if (nestStage < 6) {
+        nestStage++;
+        sessionScore += 50; // Base sum is around 300 for full nest
+        gameScene.nestSprite.setVisible(true);
+        gameScene.nestSprite.setTexture(`nest_${nestStage}`);
+        updateHUD();
+        if (nestStage >= 6) setTimeout(winGame, 1000);
+    }
+}
 
 function spawnDron() {
-    // Generar dron en el lado izquierdo o derecho aleatoriamente
-    let startX = -50;
-    let endX = 1330;
-    let startY = Phaser.Math.Between(50, 350); // Altura aleatoria en el cielo
+    if (gameScene.dronesGroup.countActive() >= 3) return;
 
-    // 50% de probabilidad de que salga de derecha a izquierda
-    if (Math.random() > 0.5) {
-        startX = 1330;
-        endX = -50;
-    }
-
-    let dron = gameScene.add.image(startX, startY, 'dron').setScale(0.15); // Escala pequeña para el dron
-    gameScene.dronesGroup.add(dron);
-
-    // Animación de movimiento del dron
+    let vieneDeIzquierda = Math.random() > 0.5;
+    let startX = vieneDeIzquierda ? -50 : 1330;
+    let endX = vieneDeIzquierda ? 1330 : -50;
+    let startY = Phaser.Math.Between(50, 250);
+    
+    let sprite = vieneDeIzquierda ? 'drone-de' : 'drone-iz';
+    let dron = gameScene.dronesGroup.create(startX, startY, sprite).setScale(0.15);
+    
     gameScene.tweens.add({
         targets: dron,
         x: endX,
-        duration: Phaser.Math.Between(3000, 5000), // Velocidad aleatoria
-        onComplete: () => { dron.destroy(); } // Se elimina cuando sale de la pantalla
+        y: startY + 100,
+        ease: 'Sine.easeInOut',
+        yoyo: true,
+        repeat: 3, 
+        duration: 4000,
+        onComplete: () => {
+            if(dron.active) {
+                nestDamage++;
+                if (nestDamage >= 3) {
+                    nestDamage = 0;
+                    if (nestStage > 0) nestStage--;
+                    gameScene.nestSprite.setTexture(nestStage > 0 ? `nest_${nestStage}` : 'nest_1');
+                    if(nestStage === 0) gameScene.nestSprite.setVisible(false);
+                }
+            }
+            dron.destroy();
+        }
     });
 }
 
-function fireMud() {
-    shotsFired++;
-    energy -= 8;
-    score += 50;
-
-    if (nestStage < 6) {
-        nestStage++;
-        gameScene.nestSprite.setVisible(true);
-        gameScene.nestSprite.setTexture(`nest_${nestStage}`);
-    }
-
-    updateHUD();
-
-    if (nestStage >= 6) {
-        setTimeout(winGame, 1000);
-        return;
-    }
-
-    if (shotsFired >= 12 || energy <= 0) {
-        triggerMateBreak();
-    }
-}
-
 function updateHUD() {
-    gameScene.hudText.setText(`🏗️ Etapa: ${nestStage}/6 | ❤️ Energía: ${Math.max(energy, 0)} | 🏆 Puntos: ${score}`);
+    gameScene.hudText.setText(`🏗️ Etapa: ${nestStage}/6 | ❤️ Energía: ${Math.max(energy, 0)} | 🏆 Puntos: ${sessionScore}`);
 }
 
+// --- DESCANSO DEL MATE ---
 function triggerMateBreak() {
-    showScreen("mate-break-screen");
-    const progress = document.getElementById("loader-progress");
-    progress.style.width = "0%";
-    setTimeout(() => progress.style.width = "100%", 10);
+    gameScene.scene.pause();
+    document.getElementById("mate-break-screen").classList.add("active");
+    mateEnergyLoad = 0;
+    updateMateUI();
 
-    setTimeout(() => {
-        shotsFired = 0;
-        energy = 100;
-        updateHUD();
-        showScreen(null);
-    }, 5000);
+    let imgIndex = 1;
+    mateInterval = setInterval(() => {
+        mateEnergyLoad += 10;
+        updateMateUI();
+        
+        imgIndex = imgIndex >= 3 ? 1 : imgIndex + 1;
+        document.getElementById("mate-anim").src = `assets/img/roberto/rh-mate${imgIndex}.png`;
+
+        if (mateEnergyLoad >= 100) {
+            clearInterval(mateInterval);
+            setTimeout(returnFromMate, 1000); // Regresa auto al 100%
+        }
+    }, 1000); // 10% por segundo = 10 segundos
 }
 
+function updateMateUI() {
+    document.getElementById("energy-progress").style.width = mateEnergyLoad + "%";
+    document.getElementById("energy-text").innerText = mateEnergyLoad + "%";
+}
+
+function returnFromMate() {
+    clearInterval(mateInterval);
+    document.getElementById("mate-break-screen").classList.remove("active");
+    energy = mateEnergyLoad; // Toma lo que cargó
+    shotsFired = 0;
+    updateHUD();
+    gameScene.scene.resume();
+    
+    // Titilar si cargó al 100%
+    if(energy >= 100) {
+        let flash = setInterval(() => gameScene.hudText.setAlpha(gameScene.hudText.alpha === 1 ? 0.5 : 1), 200);
+        setTimeout(() => { clearInterval(flash); gameScene.hudText.setAlpha(1); }, 2000);
+    }
+}
+
+// --- FIN DE JUEGO Y ESTRELLAS ---
 function winGame() {
-    document.getElementById("final-score").innerText = score;
-    document.getElementById("stars-result").innerText = score > 300 ? "⭐⭐⭐" : "⭐⭐";
-    showScreen("game-over-modal");
+    totalAccumulatedScore += sessionScore;
+
+    let estrellas = [];
+    if (nestStage >= 6) estrellas.push('estrella78');
+    if (dronesDestroyed > 0) estrellas.push('estrella86');
+    if (sessionScore >= 350) estrellas.push('estrella22');
+
+    const starsDiv = document.getElementById("stars-result");
+    starsDiv.innerHTML = '';
+    estrellas.forEach(star => {
+        starsDiv.innerHTML += `<img src="assets/img/game/${star}.png" width="50">`;
+    });
+
+    document.getElementById("current-score").innerText = sessionScore;
+    document.getElementById("total-score").innerText = totalAccumulatedScore;
+    
+    document.getElementById("game-over-modal").classList.add("active");
     lanzarConfetiCelesteYBlanco();
+}
+
+// --- GENERADOR DE CERTIFICADO EN CANVAS ---
+function downloadCertificate() {
+    const canvas = document.getElementById('cert-canvas');
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    
+    img.crossOrigin = "Anonymous";
+    img.src = 'assets/img/ui/certificadodepuntos-rh.jpg'; 
+    
+    img.onload = () => {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        
+        // 1. Dibuja la plantilla
+        ctx.drawImage(img, 0, 0);
+        
+        // 2. Configura el texto (Sobre la zona celeste)
+        ctx.font = 'bold 50px Arial';
+        ctx.fillStyle = '#ffffff'; 
+        ctx.textAlign = 'center';
+        
+        // Coordenadas estimadas del recuadro celeste
+        const centerX = 300; 
+        const startY = 650;
+        
+        let nombre = document.getElementById("player-name").value || "Jugador Honorario";
+        
+        ctx.fillText(nombre, centerX, startY);
+        ctx.font = 'bold 40px Arial';
+        ctx.fillText(`${totalAccumulatedScore} PUNTOS`, centerX, startY + 60);
+
+        // 3. Descargar
+        const link = document.createElement('a');
+        link.download = 'Certificado_Roberto_Hornero.jpg';
+        link.href = canvas.toDataURL('image/jpeg');
+        link.click();
+    };
+}
+
+// --- GUARDAR Y MOSTRAR RANKING ---
+function saveAndShowRanking() {
+    const nombre = document.getElementById("player-name").value || "Anónimo";
+    const provincia = document.getElementById("player-province").value;
+
+    database.ref("ranking").push({
+        nombre: nombre,
+        provincia: provincia,
+        puntaje: totalAccumulatedScore,
+        fecha: new Date().toISOString()
+    }).then(() => {
+        document.getElementById("save-data-modal").classList.remove("active");
+        loadRanking(nombre, totalAccumulatedScore);
+        showScreen("podium-screen");
+    });
+}
+
+function loadRanking(playerName = "", playerScore = 0) {
+    database.ref("ranking").once("value", snap => {
+        let allScores = [];
+        snap.forEach(c => allScores.push(c.val()));
+        
+        // 1. Top 3 Nacional
+        allScores.sort((a, b) => b.puntaje - a.puntaje);
+        let listHtml = "";
+        allScores.slice(0, 3).forEach((item, i) => {
+            listHtml += `<p>#${i+1} <strong>${item.nombre}</strong> - ${item.puntaje} pts</p>`;
+        });
+        document.getElementById("national-ranking-list").innerHTML = listHtml;
+
+        // 2. Ranking por Provincias (Cantidad de Jugadores)
+        let provCount = {};
+        allScores.forEach(item => {
+            provCount[item.provincia] = (provCount[item.provincia] || 0) + 1;
+        });
+        let provSorted = Object.keys(provCount).map(p => ({prov: p, count: provCount[p]})).sort((a,b) => b.count - a.count);
+        
+        let provHtml = "";
+        provSorted.forEach((item, i) => {
+            provHtml += `<p>#${i+1} <strong>${item.prov}</strong> - ${item.count} jugadores</p>`;
+        });
+        document.getElementById("province-ranking-list").innerHTML = provHtml;
+
+        // 3. Puesto del Usuario Actual
+        if (playerName !== "") {
+            let myRank = allScores.findIndex(s => s.nombre === playerName && s.puntaje === playerScore) + 1;
+            document.getElementById("my-rank-text").innerText = `Quedaste en el puesto #${myRank} a nivel nacional con ${playerScore} puntos.`;
+        }
+    });
 }
