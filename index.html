@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Roberto Hornero</title>
     <link rel="stylesheet" href="style.css">
+    <!-- Phaser y Firebase (Versión 8 Compat) -->
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.55.2/dist/phaser.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
@@ -13,19 +14,44 @@
 
     <!-- PANTALLA 1: INICIO -->
     <div id="start-screen" class="screen active">
+        <p class="subtitle">Ayuda a Roberto Hornero a construir su nido por toda la Argentina</p>
+        
         <div class="title-container">
             <h1 class="main-title">Roberto<br>Hornero</h1>
-            <img src="assets/img/roberto/rh-guitarra.jpg" alt="Roberto con Guitarra" class="img-guitarra">
+            <div class="character-container">
+                <img src="assets/img/roberto/rh-guitarra.jpg" alt="Roberto con Guitarra" class="img-guitarra">
+                <p class="patria-text">Construyendo mi pátria</p>
+            </div>
         </div>
         
-        <div class="main-buttons">
-            <button id="btn-play-main" class="btn btn-blue">¡Jugar Ahora!</button>
-            <button id="btn-view-votes" class="btn btn-orange">Ver Ranking</button>
+        <button id="btn-play-main" class="btn btn-blue btn-large">¡Jugar Ahora!</button>
+
+        <!-- RANKING NACIONAL EN INICIO -->
+        <div class="dashboard-section">
+            <div class="dash-column">
+                <h3>🏆 Top 3 Nacional</h3>
+                <div id="start-national-ranking">Cargando...</div>
+            </div>
+            <div class="dash-column">
+                <h3>📍 Provincias más jugadas</h3>
+                <div id="start-prov-ranking">Cargando...</div>
+            </div>
+        </div>
+
+        <!-- VOTACIÓN EN INICIO -->
+        <div class="voting-section">
+            <h3>🗳️ Próximos Destinos</h3>
+            <p>Votá dónde construirá Roberto su próximo nido</p>
+            <div class="voting-buttons">
+                <button class="btn btn-yellow btn-vote" data-prov="Santa Fe">Santa Fe</button>
+                <button class="btn btn-yellow btn-vote" data-prov="Chubut">Chubut</button>
+                <button class="btn btn-yellow btn-vote" data-prov="Misiones">Misiones</button>
+            </div>
+            <button id="btn-view-podium" class="btn btn-orange btn-small">Ver Votación</button>
         </div>
 
         <div class="social-buttons">
-            <a href="https://link.mercadopago.com.ar/tu_link" target="_blank" class="btn btn-green">Matecito (Apoyar)</a>
-            <a href="https://wa.me/tunumerodetelefono" target="_blank" class="btn btn-green">WhatsApp</a>
+            <a href="https://link.mercadopago.com.ar/matiasbrizzio" target="_blank" class="btn btn-green">Matecito (Apoyar)</a>
         </div>
     </div>
 
@@ -37,32 +63,24 @@
                 <img src="assets/img/ui/argentina-map.png" alt="Mapa de Argentina" class="argentina-map">
             </div>
             <div id="provinces-grid" class="provinces-list">
-                <!-- Se inyecta desde JS -->
+                <!-- Se inyecta desde JS clasificado por regiones -->
             </div>
         </div>
         <button id="btn-back-menu" class="btn btn-orange" style="margin-top:20px;">Volver al Menú</button>
     </div>
 
-    <!-- MODAL DE VOTACIÓN -->
-    <div id="vote-modal" class="modal">
-        <div class="modal-content">
-            <h3 id="vote-prov-name">Provincia</h3>
-            <p>¡Dale tu voto a esta provincia para que Roberto Hornero construya su nido allí!</p>
-            <button id="btn-confirm-vote" class="btn btn-blue">¡Votar!</button>
-            <button id="btn-close-vote" class="btn btn-orange">Cancelar</button>
-        </div>
-    </div>
-
     <!-- PANTALLA 3: EL JUEGO (PHASER) -->
-    <div id="game-container"></div>
+    <div id="game-container">
+        <!-- Control de Música Flotante -->
+        <button id="btn-toggle-music" class="music-btn">🔊 Música ON</button>
+    </div>
 
     <!-- UI DEL JUEGO: MODAL DEL MATE -->
     <div id="mate-break-screen" class="screen modal-overlay">
         <div class="mate-box">
             <h2>¡Hora de recargar energías!</h2>
-            <p>Aprovechamos este descanso gracias a nuestro Sponsor.</p>
             <img id="mate-anim" src="assets/img/roberto/rh-mate1.png" width="150">
-            <div class="progress-bar-bg">
+            <div class="progress-bar-bg thick-bar">
                 <div id="energy-progress" class="progress-bar-fill"></div>
             </div>
             <p id="energy-text">0%</p>
@@ -81,49 +99,34 @@
             <div class="game-over-buttons">
                 <button id="btn-play-more" class="btn btn-blue">Sumar más puntos</button>
                 <button id="btn-save-score" class="btn btn-green">Guardar Puntaje</button>
+                <button id="btn-share-wa" class="btn btn-green">Compartir en WhatsApp</button>
                 <button id="btn-download-cert" class="btn btn-orange">Descargar Certificado</button>
             </div>
         </div>
     </div>
 
-    <!-- MODAL PARA GUARDAR DATOS -->
+    <!-- MODAL GUARDAR DATOS -->
     <div id="save-data-modal" class="screen modal-overlay">
         <div class="modal-content">
             <h3>Ingresa tus datos</h3>
             <input type="text" id="player-name" placeholder="Tu Nombre" class="input-form">
             <select id="player-province" class="input-form">
-                <option value="Buenos Aires">Buenos Aires</option>
-                <option value="Córdoba">Córdoba</option>
-                <option value="Tucumán">Tucumán</option>
-                <!-- Agrega todas las provincias aquí -->
+                <!-- Se llena dinámicamente en JS -->
             </select>
             <button id="btn-confirm-save" class="btn btn-blue">Guardar y ver Ranking</button>
         </div>
     </div>
 
-    <!-- PANTALLA RANKING -->
-    <div id="podium-screen" class="screen">
-        <h2>Ranking General</h2>
-        <div class="ranking-layout">
-            <div class="ranking-column">
-                <h3>Top 3 Nacional</h3>
-                <div id="national-ranking-list"></div>
-            </div>
-            <div class="ranking-column">
-                <h3>Jugadores por Provincia</h3>
-                <div id="province-ranking-list"></div>
-            </div>
+    <!-- MODAL PODIO VOTACIÓN -->
+    <div id="podium-modal" class="screen modal-overlay">
+        <div class="modal-content">
+            <h2>Estado de la Votación</h2>
+            <div id="voting-results-list">Cargando...</div>
+            <button id="btn-close-podium" class="btn btn-orange">Cerrar</button>
         </div>
-        <div class="my-rank-box">
-            <h3>Tu Posición</h3>
-            <p id="my-rank-text">Guardando datos...</p>
-        </div>
-        <button id="btn-back-from-podium" class="btn btn-orange" style="margin-top:20px;">Volver al Menú</button>
     </div>
 
-    <!-- CANVAS OCULTO PARA EL CERTIFICADO -->
     <canvas id="cert-canvas" style="display:none;"></canvas>
-
     <script src="game.js"></script>
 </body>
 </html>
