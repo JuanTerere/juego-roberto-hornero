@@ -22,7 +22,9 @@ let combo = 0;
 let bestCombo = 0;
 let totalAccumulatedScore = parseInt(localStorage.getItem('rh_total_score') || '0', 10);
 
-// --- 2.1 AUDIO (sintetizado con WebAudio, sin archivos externos) ---
+// --- 2.1 AUDIO ---
+// Intenta usar música real (assets/audio/milonga-rh.mp3). Si el archivo no carga
+// o está vacío/corrupto, usa una melodía sintetizada de respaldo (sin archivos).
 const AudioEngine = (() => {
     let ctx;
     let musicOn = true;
@@ -50,10 +52,9 @@ const AudioEngine = (() => {
         } catch (e) { /* audio no disponible */ }
     }
 
-    // Melodía simple y alegre en loop (chacarera-ish), generada, no requiere mp3
     const MELODY = [523, 587, 659, 587, 523, 440, 392, 440, 523, 659, 784, 659, 523, 440, 392, 330];
 
-    function scheduleMusic() {
+    function scheduleSynthMusic() {
         if (musicTimer) return;
         musicTimer = setInterval(() => {
             if (!musicOn) return;
@@ -70,13 +71,13 @@ const AudioEngine = (() => {
         stage: () => { tone(660, 0.09, 'sine', 0.18); tone(880, 0.12, 'sine', 0.16, 0.09); },
         win: () => { [660, 880, 1046, 1318].forEach((f, i) => tone(f, 0.22, 'sine', 0.18, i * 0.11)); },
         click: () => { tone(400, 0.06, 'triangle', 0.12); },
-        startMusic: () => { getCtx(); scheduleMusic(); },
+        startSynthMusic: () => { getCtx(); scheduleSynthMusic(); },
         toggleMusic: () => { musicOn = !musicOn; return musicOn; },
         isMusicOn: () => musicOn
     };
 })();
 
-// --- 3. DATOS DE PROVINCIAS (por región, estilo "mapa de conquista") ---
+// --- 3. DATOS DE PROVINCIAS (por región) ---
 const REGIONS_DATA = [
     {
         region: "Región Pampeana",
@@ -129,10 +130,9 @@ document.addEventListener("DOMContentLoaded", () => {
     loadStartDashboards();
     renderProvincesList();
     populateProvinceSelect();
-    loadRankingLegacyCompat();
 
-    document.getElementById("btn-play-main").addEventListener("click", () => { SFXClick(); showScreen("province-screen"); });
-    document.getElementById("btn-back-menu").addEventListener("click", () => { SFXClick(); showScreen("start-screen"); });
+    document.getElementById("btn-play-main").addEventListener("click", () => { AudioEngine.click(); showScreen("province-screen"); });
+    document.getElementById("btn-back-menu").addEventListener("click", () => { AudioEngine.click(); showScreen("start-screen"); });
 
     document.getElementById("btn-open-campaign").addEventListener("click", () => openModal("campaign-modal"));
     document.getElementById("btn-close-campaign").addEventListener("click", () => closeModal("campaign-modal"));
@@ -183,13 +183,15 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("btn-download-cert").addEventListener("click", downloadCertificate);
 
     document.getElementById("btn-toggle-music").addEventListener("click", () => {
-        AudioEngine.startMusic();
         const on = AudioEngine.toggleMusic();
         document.getElementById("btn-toggle-music").textContent = on ? "🔊" : "🔇";
+        if (gameScene && gameScene.bgMusic && !gameScene.musicUsingSynth) {
+            if (on) gameScene.bgMusic.play(); else gameScene.bgMusic.pause();
+        } else if (on) {
+            AudioEngine.startSynthMusic();
+        }
     });
 });
-
-function SFXClick() { AudioEngine.click(); }
 
 function showScreen(screenId) {
     document.querySelectorAll(".screen:not(.modal-overlay)").forEach(s => s.classList.remove("active"));
@@ -303,20 +305,6 @@ function loadStartDashboards() {
     }).catch(err => console.log("Error de conexión con Firebase:", err));
 }
 
-// Compat: mantiene funcionando cualquier lista de ranking vieja si existiera en el HTML
-function loadRankingLegacyCompat() {
-    const legacyList = document.getElementById("ranking-list");
-    if (!legacyList) return;
-    database.ref("ranking").orderByChild("puntaje").limitToLast(5).once("value", snap => {
-        legacyList.innerHTML = "";
-        let arr = [];
-        snap.forEach(c => arr.push(c.val()));
-        arr.reverse().forEach((item, i) => {
-            legacyList.innerHTML += `<p>#${i + 1} <strong>${item.nombre}</strong>: ${item.puntaje} pts</p>`;
-        });
-    });
-}
-
 function loadPodiumData() {
     database.ref("votacion").once("value", snapshot => {
         const votes = snapshot.val() || {};
@@ -337,8 +325,19 @@ let game;
 let gameScene;
 let currentProv;
 
-const NEST_TARGET = { x: 980, y: 400, radius: 95 };
-const LAUNCH_POINT = { x: 220, y: 560 };
+// Las ilustraciones originales son muy grandes (varios miles de px), por eso
+// las escalas son chicas: así el personaje y el nido quedan proporcionados
+// dentro del canvas de 1280x720.
+const GROUND_Y = 650;
+const ROBERTO_SCALE = 0.055;
+const ROBERTO_X = 200;
+const NEST_SCALE = 0.18;
+const MUD_SCALE = 0.014;
+const STAR_SCALE = 0.012;
+const DRONE_SCALE = 0.12;
+
+const LAUNCH_POINT = { x: ROBERTO_X, y: GROUND_Y - 110 };
+const NEST_TARGET = { x: 980, y: 410, radius: 75 };
 const MAX_DRAG = 160;
 const GRAVITY_Y = 900;
 
@@ -351,8 +350,6 @@ function startGamePhaser(prov) {
     combo = 0;
     bestCombo = 0;
     showScreen(null);
-
-    AudioEngine.startMusic();
 
     if (game) game.destroy(true);
 
@@ -385,33 +382,50 @@ function preload() {
     this.load.image('rh_lanza2', 'assets/img/roberto/rh-lanza2.png');
     this.load.image('rh_lanza3', 'assets/img/roberto/rh-lanza3.png');
 
-    this.load.image('proyectil_barro', 'assets/img/game/proyectil-barro.png');
-    this.load.image('estrella', 'assets/img/game/estrella.png');
-    this.load.image('estrella78', 'assets/img/game/estrella78.png');
-    this.load.image('estrella86', 'assets/img/game/estrella86.png');
-    this.load.image('estrella22', 'assets/img/game/estrella22.png');
+    this.load.image('proyectil_barro', 'assets/proyectil-barro.png');
+    this.load.image('estrella', 'assets/estrella.png');
+    this.load.image('estrella78', 'assets/estrella78.png');
+    this.load.image('estrella86', 'assets/estrella86.png');
+    this.load.image('estrella22', 'assets/estrella22.png');
+
+    this.load.image('drone_de', 'assets/img/game/drone.de.png');
+    this.load.image('drone_iz', 'assets/img/game/drone.iz.png');
+
+    // Música: si el archivo falta o está corrupto, marcamos la bandera y usamos el respaldo sintetizado
+    this.musicLoadFailed = false;
+    this.load.on('loaderror', (file) => {
+        if (file.key === 'milonga') this.musicLoadFailed = true;
+    });
+    this.load.audio('milonga', 'assets/audio/milonga-rh.mp3');
 }
 
 function create() {
     gameScene = this;
     this.isAnimating = false;
     this.aiming = false;
+    this.drones = [];
 
     this.add.image(640, 360, 'bg').setDisplaySize(1280, 720);
 
-    this.poste = this.add.image(NEST_TARGET.x, 620, 'base_poste').setScale(0.8).setDepth(2);
-    this.nestSprite = this.add.image(NEST_TARGET.x, NEST_TARGET.y, 'nest_1').setScale(0.75).setDepth(3);
-    this.nestSprite.setVisible(false);
-    this.nestSprite.setAlpha(0);
+    // Poste/nido: UN solo sprite que cambia de textura según la etapa
+    // (las imágenes del nido ya incluyen el poste, por eso no se dibujan superpuestos)
+    this.nestPost = this.add.image(NEST_TARGET.x, GROUND_Y, 'base_poste')
+        .setOrigin(0.5, 1)
+        .setScale(NEST_SCALE)
+        .setDepth(3);
 
     this.targetRing = this.add.circle(NEST_TARGET.x, NEST_TARGET.y, NEST_TARGET.radius, 0xffffff, 0.06).setStrokeStyle(2, 0xffffff, 0.25).setDepth(1);
     this.tweens.add({ targets: this.targetRing, scale: { from: 1, to: 1.06 }, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
 
-    this.player = this.add.image(LAUNCH_POINT.x, LAUNCH_POINT.y, 'rh_conpala').setScale(0.55).setDepth(4);
-    this.tweens.add({ targets: this.player, y: LAUNCH_POINT.y - 8, duration: 1000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    this.player = this.add.image(ROBERTO_X, GROUND_Y, 'rh_conpala')
+        .setOrigin(0.5, 1)
+        .setScale(ROBERTO_SCALE)
+        .setDepth(4);
+    this.tweens.add({ targets: this.player, y: GROUND_Y - 6, duration: 1000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
 
     this.aimGraphics = this.add.graphics().setDepth(5);
 
+    // HUD
     this.uiTop = this.add.rectangle(640, 46, 1280, 92, 0x0b1a2b, 0.55).setDepth(10);
 
     this.barBg = this.add.rectangle(210, 40, 320, 22, 0x0b1a2b, 0.6).setStrokeStyle(2, 0xffffff, 0.5).setDepth(11);
@@ -428,11 +442,31 @@ function create() {
 
     updateHUD();
 
+    // --- Música de fondo ---
+    this.musicUsingSynth = true;
+    if (!this.musicLoadFailed && this.cache.audio.exists('milonga')) {
+        try {
+            this.bgMusic = this.sound.add('milonga', { loop: true, volume: 0.5 });
+            if (this.bgMusic && this.bgMusic.duration > 0.5) {
+                this.musicUsingSynth = false;
+                if (AudioEngine.isMusicOn()) this.bgMusic.play();
+            }
+        } catch (e) { this.musicUsingSynth = true; }
+    }
+    if (this.musicUsingSynth && AudioEngine.isMusicOn()) {
+        AudioEngine.startSynthMusic();
+    }
+
+    // --- Drones: objetivos voladores de bonus ---
+    this.time.addEvent({ delay: 4500, callback: () => spawnDrone(this), callbackScope: this, loop: true });
+
+    // --- Input: arrastrar para apuntar, soltar para lanzar ---
     this.input.on('pointerdown', (pointer) => {
         if (document.querySelector(".screen.active.modal-overlay")) return;
         if (this.isAnimating || this.projectile) return;
         this.aiming = true;
         this.dragStart = { x: pointer.x, y: pointer.y };
+        this.player.setTexture('rh_lanza1');
     });
 
     this.input.on('pointermove', (pointer) => {
@@ -444,6 +478,14 @@ function create() {
         if (!this.aiming) return;
         this.aiming = false;
         this.aimGraphics.clear();
+
+        const dx = pointer.x - LAUNCH_POINT.x;
+        const dy = pointer.y - LAUNCH_POINT.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 20) {
+            this.player.setTexture('rh_conpala');
+            return;
+        }
         launchMud(this, pointer);
     });
 }
@@ -481,7 +523,6 @@ function launchMud(scene, pointer) {
     const dx = pointer.x - LAUNCH_POINT.x;
     const dy = pointer.y - LAUNCH_POINT.y;
     let dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist < 20) return;
 
     dist = Math.min(dist, MAX_DRAG);
     const angle = Math.atan2(dy, dx);
@@ -492,15 +533,15 @@ function launchMud(scene, pointer) {
     updateHUD();
     AudioEngine.launch();
 
-    scene.player.setTexture('rh_lanza1');
-    scene.time.delayedCall(80, () => scene.player.setTexture('rh_lanza2'));
-    scene.time.delayedCall(160, () => scene.player.setTexture('rh_lanza3'));
-    scene.time.delayedCall(420, () => scene.player.setTexture('rh_conpala'));
+    // Secuencia de lanzamiento: lanza1 ya estaba puesta al apuntar -> lanza2 -> lanza3 -> conpala
+    scene.player.setTexture('rh_lanza2');
+    scene.time.delayedCall(90, () => scene.player.setTexture('rh_lanza3'));
+    scene.time.delayedCall(280, () => scene.player.setTexture('rh_conpala'));
 
     const vx = -Math.cos(angle) * power * 900;
     const vy = -Math.sin(angle) * power * 900;
 
-    const mud = scene.physics.add.image(LAUNCH_POINT.x, LAUNCH_POINT.y, 'proyectil_barro').setScale(0.35).setDepth(6);
+    const mud = scene.physics.add.image(LAUNCH_POINT.x, LAUNCH_POINT.y, 'proyectil_barro').setScale(MUD_SCALE).setDepth(6);
     mud.body.setAllowGravity(true);
     mud.body.setVelocity(vx, vy);
     mud.body.setCircle(mud.width * 0.3);
@@ -516,11 +557,21 @@ function launchMud(scene, pointer) {
 
             mud.rotation += 0.25;
 
-            const d = Phaser.Math.Distance.Between(mud.x, mud.y, NEST_TARGET.x, NEST_TARGET.y);
-            if (d < NEST_TARGET.radius) {
+            const dNest = Phaser.Math.Distance.Between(mud.x, mud.y, NEST_TARGET.x, NEST_TARGET.y);
+            if (dNest < NEST_TARGET.radius) {
                 checkLoop.remove();
                 onHit(scene, mud);
                 return;
+            }
+
+            for (const drone of scene.drones) {
+                if (!drone.active) continue;
+                const dDrone = Phaser.Math.Distance.Between(mud.x, mud.y, drone.x, drone.y);
+                if (dDrone < 65) {
+                    checkLoop.remove();
+                    onDroneHit(scene, mud, drone);
+                    return;
+                }
             }
 
             if (mud.y > 760 || mud.x < -50 || mud.x > 1330) {
@@ -529,6 +580,19 @@ function launchMud(scene, pointer) {
             }
         }
     });
+}
+
+function starBurst(scene, x, y, quantity = 14, lifespan = 550) {
+    const starKeys = ['estrella', 'estrella78', 'estrella86', 'estrella22'];
+    const emitter = scene.add.particles(x, y, Phaser.Utils.Array.GetRandom(starKeys), {
+        speed: { min: 120, max: 300 },
+        angle: { min: 0, max: 360 },
+        scale: { start: STAR_SCALE, end: 0 },
+        lifespan: lifespan,
+        quantity: quantity,
+        depth: 7
+    });
+    scene.time.delayedCall(lifespan + 50, () => emitter.destroy());
 }
 
 function onHit(scene, mud) {
@@ -545,17 +609,7 @@ function onHit(scene, mud) {
 
     AudioEngine.hit();
     scene.cameras.main.shake(160, 0.008);
-
-    const starKeys = ['estrella', 'estrella78', 'estrella86', 'estrella22'];
-    const emitter = scene.add.particles(NEST_TARGET.x, NEST_TARGET.y, Phaser.Utils.Array.GetRandom(starKeys), {
-        speed: { min: 150, max: 320 },
-        angle: { min: 0, max: 360 },
-        scale: { start: 0.4, end: 0 },
-        lifespan: 550,
-        quantity: 14,
-        depth: 7
-    });
-    scene.time.delayedCall(600, () => emitter.destroy());
+    starBurst(scene, NEST_TARGET.x, NEST_TARGET.y);
 
     floatingText(scene, NEST_TARGET.x, NEST_TARGET.y - 40, `+${points}`, '#f1c40f');
     if (combo > 1) {
@@ -565,12 +619,12 @@ function onHit(scene, mud) {
 
     if (nestStage < 6) {
         nestStage++;
-        scene.nestSprite.setVisible(true);
-        scene.nestSprite.setTexture(`nest_${nestStage}`);
-        scene.nestSprite.setScale(0.5);
-        scene.nestSprite.setAlpha(1);
-        scene.tweens.add({ targets: scene.nestSprite, scale: 0.85, duration: 180, ease: 'Back.Out' });
-        scene.tweens.add({ targets: scene.nestSprite, scale: { from: 0.9, to: 0.75 }, duration: 220, delay: 180, ease: 'Sine.easeOut' });
+        scene.nestPost.setTexture(`nest_${nestStage}`);
+        scene.tweens.add({
+            targets: scene.nestPost,
+            scaleX: NEST_SCALE * 1.18, scaleY: NEST_SCALE * 1.18,
+            duration: 150, yoyo: true, ease: 'Sine.easeOut'
+        });
         AudioEngine.stage();
     }
 
@@ -580,6 +634,28 @@ function onHit(scene, mud) {
         scene.time.delayedCall(900, winGame);
         return;
     }
+
+    if (shotsFired >= 12 || energy <= 0) {
+        scene.time.delayedCall(500, () => triggerMateBreak());
+    }
+}
+
+function onDroneHit(scene, mud, drone) {
+    mud.destroy();
+    scene.projectile = null;
+    scene.isAnimating = false;
+
+    const dx = drone.x, dy = drone.y;
+    drone.destroy();
+    scene.drones = scene.drones.filter(d => d !== drone);
+
+    const bonus = 30;
+    score += bonus;
+    AudioEngine.hit();
+    starBurst(scene, dx, dy, 10, 450);
+    floatingText(scene, dx, dy, `+${bonus} 🛸`, '#3498db');
+
+    updateHUD();
 
     if (shotsFired >= 12 || energy <= 0) {
         scene.time.delayedCall(500, () => triggerMateBreak());
@@ -600,6 +676,26 @@ function onMiss(scene, mud) {
     }
 }
 
+function spawnDrone(scene) {
+    if (!scene || !scene.sys || document.querySelector(".screen.active.modal-overlay")) return;
+
+    const fromLeft = Math.random() < 0.5;
+    const y = Phaser.Math.Between(140, 300);
+    const speed = Phaser.Math.Between(110, 190);
+
+    let x, vx, texKey;
+    if (fromLeft) {
+        x = -100; vx = speed; texKey = 'drone_de'; // vuela hacia la derecha
+    } else {
+        x = 1380; vx = -speed; texKey = 'drone_iz'; // vuela hacia la izquierda
+    }
+
+    const drone = scene.physics.add.image(x, y, texKey).setScale(DRONE_SCALE).setDepth(4);
+    drone.body.setAllowGravity(false);
+    drone.body.setVelocity(vx, 0);
+    scene.drones.push(drone);
+}
+
 function floatingText(scene, x, y, msg, color) {
     const txt = scene.add.text(x, y, msg, {
         fontSize: '34px', fontStyle: 'bold', fill: color, stroke: '#000000', strokeThickness: 4
@@ -614,7 +710,14 @@ function floatingText(scene, x, y, msg, color) {
     });
 }
 
-function update() { }
+function update() {
+    if (!gameScene || !gameScene.drones) return;
+    gameScene.drones = gameScene.drones.filter(d => {
+        if (!d.active) return false;
+        if (d.x < -150 || d.x > 1430) { d.destroy(); return false; }
+        return true;
+    });
+}
 
 function updateHUD() {
     if (!gameScene) return;
@@ -633,6 +736,7 @@ function updateHUD() {
 let mateAnimInterval = null;
 let mateLoadTimer = null;
 
+// Dura 10 segundos: +10% de energía por segundo
 function triggerMateBreak() {
     openModal("mate-break-screen");
     const progress = document.getElementById("loader-progress");
@@ -642,10 +746,12 @@ function triggerMateBreak() {
     let loadPct = 0;
     startMateAnimation();
 
+    clearInterval(mateLoadTimer);
     mateLoadTimer = setInterval(() => {
-        loadPct += 5;
-        progress.style.width = loadPct + "%";
-        energyText.textContent = `Cebando mate... ${loadPct}%`;
+        loadPct += 10;
+        progress.style.width = Math.min(loadPct, 100) + "%";
+        energyText.textContent = `Cebando mate... ${Math.min(loadPct, 100)}%`;
+
         if (loadPct >= 100) {
             clearInterval(mateLoadTimer);
             energyText.textContent = "¡Energía al 100%!";
@@ -653,11 +759,9 @@ function triggerMateBreak() {
             shotsFired = 0;
             energy = 100;
             updateHUD();
-            setTimeout(() => {
-                closeModal("mate-break-screen");
-            }, 500);
+            setTimeout(() => closeModal("mate-break-screen"), 700);
         }
-    }, 130);
+    }, 1000);
 }
 
 function startMateAnimation() {
@@ -666,10 +770,11 @@ function startMateAnimation() {
     const frames = ['assets/img/roberto/rh-mate1.png', 'assets/img/roberto/rh-mate2.png', 'assets/img/roberto/rh-mate3.png'];
     let i = 0;
     img.src = frames[0];
+    clearInterval(mateAnimInterval);
     mateAnimInterval = setInterval(() => {
         i = (i + 1) % frames.length;
         img.src = frames[i];
-    }, 450);
+    }, 500);
 }
 function stopMateAnimation() {
     if (mateAnimInterval) clearInterval(mateAnimInterval);
@@ -695,50 +800,56 @@ function winGame() {
     AudioEngine.win();
 }
 
-// --- 8. CERTIFICADO DESCARGABLE ---
+// --- 8. CERTIFICADO DESCARGABLE (usa la plantilla real con el recuadro celeste) ---
+function fitText(ctx, text, maxWidth, baseSize) {
+    let size = baseSize;
+    ctx.font = `bold ${size}px Arial`;
+    while (ctx.measureText(text).width > maxWidth && size > 22) {
+        size -= 2;
+        ctx.font = `bold ${size}px Arial`;
+    }
+    return size;
+}
+
 function downloadCertificate() {
     const cvs = document.getElementById("cert-canvas");
-    cvs.width = 800; cvs.height = 600;
     const ctx = cvs.getContext("2d");
+    const img = new Image();
 
-    ctx.fillStyle = "#74acdf";
-    ctx.fillRect(0, 0, 800, 600);
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(15, 15, 770, 570);
-    ctx.strokeStyle = "#f1c40f";
-    ctx.lineWidth = 6;
-    ctx.strokeRect(30, 30, 740, 540);
+    img.onload = () => {
+        cvs.width = img.width;
+        cvs.height = img.height;
+        ctx.drawImage(img, 0, 0);
 
-    ctx.fillStyle = "#1e2b38";
-    ctx.font = "bold 40px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText("CERTIFICADO PATRIÓTICO", 400, 110);
+        // Recuadro celeste de la plantilla (medido sobre la imagen original 1080x1920)
+        const boxCenterX = 343;
+        const boxLeft = 102, boxRight = 584;
+        const boxWidth = boxRight - boxLeft - 40;
 
-    ctx.font = "22px Arial";
-    ctx.fillStyle = "#555";
-    ctx.fillText("Roberto Hornero - Construyendo Patria 🇦🇷", 400, 145);
+        ctx.textAlign = "center";
 
-    ctx.font = "30px Arial";
-    ctx.fillStyle = "#1e2b38";
-    const pName = (document.getElementById("player-name") && document.getElementById("player-name").value) || "Constructor/a";
-    ctx.fillText(`Otorgado a: ${pName}`, 400, 240);
+        const pName = (document.getElementById("player-name") && document.getElementById("player-name").value) || "Constructor/a";
+        ctx.fillStyle = "#0b2545";
+        fitText(ctx, pName, boxWidth, 46);
+        ctx.fillText(pName, boxCenterX, 1190);
 
-    ctx.font = "24px Arial";
-    ctx.fillText(`Por ayudar a construir un nido en`, 400, 300);
-    ctx.font = "bold 28px Arial";
-    ctx.fillStyle = "#c0392b";
-    ctx.fillText(`${currentProv ? currentProv.name : 'Argentina'}`, 400, 340);
+        ctx.fillStyle = "#0b2545";
+        ctx.font = "bold 30px Arial";
+        ctx.fillText(currentProv ? currentProv.name : "Argentina", boxCenterX, 1250);
 
-    ctx.font = "bold 32px Arial";
-    ctx.fillStyle = "#27ae60";
-    ctx.fillText(`Puntaje: ${score} pts`, 400, 420);
+        ctx.fillStyle = "#c0392b";
+        ctx.font = "bold 42px Arial";
+        ctx.fillText(`${score} puntos`, boxCenterX, 1340);
 
-    ctx.font = "16px Arial";
-    ctx.fillStyle = "#888";
-    ctx.fillText(new Date().toLocaleDateString('es-AR'), 400, 550);
+        const link = document.createElement('a');
+        link.download = `Certificado-Roberto-Hornero.png`;
+        link.href = cvs.toDataURL();
+        link.click();
+    };
 
-    const link = document.createElement('a');
-    link.download = `Certificado-Roberto-Hornero.png`;
-    link.href = cvs.toDataURL();
-    link.click();
+    img.onerror = () => {
+        showToast("No se pudo generar el certificado (falta la imagen base).");
+    };
+
+    img.src = "assets/img/ui/certificadodepuntos-rh.png";
 }
