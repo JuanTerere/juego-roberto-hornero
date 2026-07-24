@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel Admin - Roberto Hornero</title>
+    <link rel="stylesheet" href="admin.css">
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+</head>
+<body>
+
+    <div id="login-screen" class="login-wrap">
+        <div class="login-box">
+            <h1>🔐 Panel Admin</h1>
+            <p>Roberto Hornero - Construyendo Patria</p>
+            <input type="password" id="admin-password" placeholder="Contraseña">
+            <button id="btn-login">Ingresar</button>
+            <p id="login-error" class="login-error"></p>
+        </div>
+    </div>
+
+    <div id="admin-panel" class="admin-wrap" style="display:none;">
+        <header class="admin-header">
+            <h1>🏗️ Panel Admin — Roberto Hornero</h1>
+            <button id="btn-logout" class="btn-logout">Salir</button>
+        </header>
+
+        <section class="admin-section">
+            <h2>Provincias</h2>
+            <p class="admin-hint">
+                Cambiá el estado de cada provincia y guardá. Los cambios se reflejan en el juego al instante
+                (el jugador los ve la próxima vez que entra a "Elegí una Provincia").
+                Para el fondo de una provincia habilitada, subí la imagen a <code>assets/escenarios/</code> en GitHub
+                y escribí acá el nombre exacto del archivo (ej: <code>mendoza-aconcagua.png</code>).
+            </p>
+            <div id="admin-provinces-list" class="admin-provinces-list">Cargando...</div>
+        </section>
+
+        <section class="admin-section">
+            <h2>Votación de la comunidad</h2>
+            <p class="admin-hint">Votos actuales por provincia. Podés resetear el conteo de una provincia.</p>
+            <div id="admin-votes-list" class="admin-votes-list">Cargando...</div>
+        </section>
+
+        <section class="admin-section">
+            <h2>Ranking de jugadores</h2>
+            <p class="admin-hint">Últimos puntajes guardados (para verificar que Firebase esté guardando bien).</p>
+            <div id="admin-ranking-list" class="admin-ranking-list">Cargando...</div>
+        </section>
+    </div>
+
+    <script src="admin.js"></script>
+</body>
+</html>

@@ -20,11 +20,14 @@ let shotsFired = 0;
 let hits = 0;
 let combo = 0;
 let bestCombo = 0;
+let dronesDestroyed = 0;
+let dronesSpawnedCount = 0;
+let nestDefense = 0; // 0..3, cada 3 piedrazos de dron le quita una etapa al nido
+let specialShotAvailable = true;
+let specialModeArmed = false;
 let totalAccumulatedScore = parseInt(localStorage.getItem('rh_total_score') || '0', 10);
 
 // --- 2.1 AUDIO ---
-// Intenta usar música real (assets/audio/milonga-rh.mp3). Si el archivo no carga
-// o está vacío/corrupto, usa una melodía sintetizada de respaldo (sin archivos).
 const AudioEngine = (() => {
     let ctx;
     let musicOn = true;
@@ -67,8 +70,10 @@ const AudioEngine = (() => {
     return {
         launch: () => { tone(180, 0.12, 'sawtooth', 0.15); tone(280, 0.08, 'sine', 0.1, 0.02); },
         hit: () => { tone(520, 0.08, 'square', 0.18); tone(780, 0.1, 'sine', 0.15, 0.05); },
+        thud: () => { tone(110, 0.2, 'sawtooth', 0.16); },
         miss: () => { tone(140, 0.25, 'sawtooth', 0.12); },
         stage: () => { tone(660, 0.09, 'sine', 0.18); tone(880, 0.12, 'sine', 0.16, 0.09); },
+        special: () => { [880, 1046, 1318].forEach((f, i) => tone(f, 0.15, 'sine', 0.16, i * 0.06)); },
         win: () => { [660, 880, 1046, 1318].forEach((f, i) => tone(f, 0.22, 'sine', 0.18, i * 0.11)); },
         click: () => { tone(400, 0.06, 'triangle', 0.12); },
         startSynthMusic: () => { getCtx(); scheduleSynthMusic(); },
@@ -77,11 +82,12 @@ const AudioEngine = (() => {
     };
 })();
 
-// --- 3. DATOS DE PROVINCIAS (por región) ---
+// --- 3. DATOS DE PROVINCIAS (por región) — pueden sobreescribirse desde el panel admin ---
 const REGIONS_DATA = [
     {
         region: "Región Pampeana",
         provinces: [
+            { id: "caba", name: "Ciudad Autónoma de Buenos Aires", status: "bloqueada" },
             { id: "bsas", name: "Buenos Aires", status: "habilitada", bg: "obelisco-bs-as.png" },
             { id: "cordoba", name: "Córdoba", status: "habilitada", bg: "catedral-de-cordoba.png" },
             { id: "santafe", name: "Santa Fe", status: "votacion" },
@@ -127,9 +133,8 @@ const REGIONS_DATA = [
 // --- 4. INICIALIZACIÓN DE INTERFAZ ---
 document.addEventListener("DOMContentLoaded", () => {
 
+    loadRegionsAndRender();
     loadStartDashboards();
-    renderProvincesList();
-    populateProvinceSelect();
 
     document.getElementById("btn-play-main").addEventListener("click", () => { AudioEngine.click(); showScreen("province-screen"); });
     document.getElementById("btn-back-menu").addEventListener("click", () => { AudioEngine.click(); showScreen("start-screen"); });
@@ -146,10 +151,13 @@ document.addEventListener("DOMContentLoaded", () => {
     document.querySelectorAll(".btn-vote").forEach(btn => {
         btn.addEventListener("click", (e) => {
             const provName = e.target.getAttribute("data-prov");
-            database.ref(`votacion/${provName}`).transaction(current => (current || 0) + 1);
-            lanzarConfetiCelesteYBlanco();
-            AudioEngine.win();
-            showToast(`🎉 ¡Gracias por votar por ${provName}!`);
+            database.ref(`votacion/${provName}`).transaction(current => (current || 0) + 1)
+                .then(() => {
+                    lanzarConfetiCelesteYBlanco();
+                    AudioEngine.win();
+                    showToast(`🎉 ¡Gracias por votar por ${provName}!`);
+                })
+                .catch(err => showToast(`No se pudo registrar el voto: ${err.message}`));
         });
     });
 
@@ -167,16 +175,25 @@ document.addEventListener("DOMContentLoaded", () => {
         e.preventDefault();
         const name = document.getElementById("player-name").value || "Anónimo";
         const prov = document.getElementById("player-province").value;
+        const submitBtn = e.target.querySelector("button[type=submit]");
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Guardando..."; }
+
         database.ref("ranking").push({
             nombre: name,
             provincia: prov,
             puntaje: totalAccumulatedScore,
             fecha: new Date().toISOString()
+        }).then(() => {
+            showToast("¡Puntaje guardado!");
+            closeModal("save-data-modal");
+            loadStartDashboards();
+            showScreen("start-screen");
+        }).catch(err => {
+            showToast(`Error al guardar en Firebase: ${err.message}`);
+            console.error("Error guardando ranking:", err);
+        }).finally(() => {
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "Guardar y ver Ranking"; }
         });
-        showToast("¡Puntaje guardado!");
-        closeModal("save-data-modal");
-        loadStartDashboards();
-        showScreen("start-screen");
     });
 
     document.getElementById("btn-share-score").addEventListener("click", shareScore);
@@ -213,7 +230,7 @@ function showToast(msg) {
     void toast.offsetWidth;
     toast.classList.add("show");
     clearTimeout(toast._t);
-    toast._t = setTimeout(() => toast.classList.remove("show"), 2200);
+    toast._t = setTimeout(() => toast.classList.remove("show"), 3200);
 }
 
 function shareScore() {
@@ -235,7 +252,25 @@ function lanzarConfetiCelesteYBlanco() {
     }
 }
 
-// --- 5. LISTA DE PROVINCIAS POR REGIÓN ---
+// --- 5. PROVINCIAS: mezcla overrides del panel admin (Firebase) con los datos base ---
+function loadRegionsAndRender() {
+    database.ref('provinceStatus').once('value').then(snap => {
+        if (snap.exists()) {
+            const overrides = snap.val();
+            REGIONS_DATA.forEach(region => region.provinces.forEach(p => {
+                if (overrides[p.id]) {
+                    if (overrides[p.id].status) p.status = overrides[p.id].status;
+                    if (overrides[p.id].bg) p.bg = overrides[p.id].bg;
+                }
+            }));
+        }
+    }).catch(err => console.log("No se pudieron cargar overrides de provincias:", err))
+      .finally(() => {
+        renderProvincesList();
+        populateProvinceSelect();
+    });
+}
+
 function renderProvincesList() {
     const list = document.getElementById("provinces-grid");
     list.innerHTML = "";
@@ -255,9 +290,12 @@ function renderProvincesList() {
                 row.addEventListener("click", () => startGamePhaser(prov));
             } else if (prov.status === "votacion") {
                 row.addEventListener("click", () => {
-                    database.ref(`votacion/${prov.name}`).transaction(current => (current || 0) + 1);
-                    lanzarConfetiCelesteYBlanco();
-                    showToast(`¡Votaste por ${prov.name}!`);
+                    database.ref(`votacion/${prov.name}`).transaction(current => (current || 0) + 1)
+                        .then(() => {
+                            lanzarConfetiCelesteYBlanco();
+                            showToast(`¡Votaste por ${prov.name}!`);
+                        })
+                        .catch(err => showToast(`No se pudo registrar el voto: ${err.message}`));
                 });
             }
             list.appendChild(row);
@@ -265,21 +303,21 @@ function renderProvincesList() {
     });
 }
 
+// El selector del formulario de puntaje muestra las 23 provincias + CABA, sin importar su estado en el juego
 function populateProvinceSelect() {
     const select = document.getElementById("player-province");
+    select.innerHTML = '<option value="" disabled selected>Seleccioná tu provincia</option>';
     REGIONS_DATA.forEach(r => r.provinces.forEach(p => {
-        if (p.status === "habilitada") {
-            const opt = document.createElement("option");
-            opt.value = p.name;
-            opt.textContent = p.name;
-            select.appendChild(opt);
-        }
+        const opt = document.createElement("option");
+        opt.value = p.name;
+        opt.textContent = p.name;
+        select.appendChild(opt);
     }));
 }
 
 // --- 6. DASHBOARDS Y RANKING ---
 function loadStartDashboards() {
-    database.ref("ranking").once("value", snap => {
+    database.ref("ranking").once("value").then(snap => {
         let allScores = [];
         if (snap.exists()) snap.forEach(c => allScores.push(c.val()));
 
@@ -302,11 +340,15 @@ function loadStartDashboards() {
             natBox.innerHTML = "Aún no hay jugadas";
             provBox.innerHTML = "Aún no hay jugadas";
         }
-    }).catch(err => console.log("Error de conexión con Firebase:", err));
+    }).catch(err => {
+        console.log("Error de conexión con Firebase:", err);
+        document.getElementById("start-national-ranking").innerHTML = "Sin conexión";
+        document.getElementById("start-prov-ranking").innerHTML = "Sin conexión";
+    });
 }
 
 function loadPodiumData() {
-    database.ref("votacion").once("value", snapshot => {
+    database.ref("votacion").once("value").then(snapshot => {
         const votes = snapshot.val() || {};
         let sorted = Object.keys(votes).map(k => ({ prov: k, v: votes[k] })).sort((a, b) => b.v - a.v);
         while (sorted.length < 3) sorted.push({ prov: "-", v: 0 });
@@ -317,27 +359,26 @@ function loadPodiumData() {
         document.getElementById("podium-2nd-votes").innerText = `${sorted[1].v} votos`;
         document.getElementById("podium-3rd-name").innerText = sorted[2].prov;
         document.getElementById("podium-3rd-votes").innerText = `${sorted[2].v} votos`;
-    });
+    }).catch(err => showToast(`No se pudo cargar la votación: ${err.message}`));
 }
 
-// --- 7. MOTOR PHASER 3 (EL JUEGO) — Mecánica tipo "Angry Birds" ---
+// --- 7. MOTOR PHASER 3 (EL JUEGO) ---
 let game;
 let gameScene;
 let currentProv;
 
-// Las ilustraciones originales son muy grandes (varios miles de px), por eso
-// las escalas son chicas: así el personaje y el nido quedan proporcionados
-// dentro del canvas de 1280x720.
-const GROUND_Y = 650;
+const GROUND_Y = 712;
 const ROBERTO_SCALE = 0.055;
 const ROBERTO_X = 200;
 const NEST_SCALE = 0.18;
-const MUD_SCALE = 0.014;
-const STAR_SCALE = 0.012;
-const DRONE_SCALE = 0.12;
+const MUD_SCALE = 0.016;
+const STAR_SCALE = 0.012;       // chispas de partículas en los impactos
+const STAR_PROJECTILE_SCALE = 0.018; // tamaño de cada estrella del disparo especial
+const DRONE_SCALE = 0.13;
+const SPECIAL_BTN = { x: 210, y: 108, radius: 26 };
 
 const LAUNCH_POINT = { x: ROBERTO_X, y: GROUND_Y - 110 };
-const NEST_TARGET = { x: 980, y: 410, radius: 75 };
+const NEST_TARGET = { x: 980, y: GROUND_Y - 240, radius: 75 };
 const MAX_DRAG = 160;
 const GRAVITY_Y = 900;
 
@@ -349,6 +390,11 @@ function startGamePhaser(prov) {
     hits = 0;
     combo = 0;
     bestCombo = 0;
+    dronesDestroyed = 0;
+    dronesSpawnedCount = 0;
+    nestDefense = 0;
+    specialShotAvailable = true;
+    specialModeArmed = false;
     showScreen(null);
 
     if (game) game.destroy(true);
@@ -382,16 +428,15 @@ function preload() {
     this.load.image('rh_lanza2', 'assets/img/roberto/rh-lanza2.png');
     this.load.image('rh_lanza3', 'assets/img/roberto/rh-lanza3.png');
 
-    this.load.image('proyectil_barro', 'assets/proyectil-barro.png');
-    this.load.image('estrella', 'assets/estrella.png');
-    this.load.image('estrella78', 'assets/estrella78.png');
-    this.load.image('estrella86', 'assets/estrella86.png');
-    this.load.image('estrella22', 'assets/estrella22.png');
+    this.load.image('proyectil_barro', 'assets/img/game/barro1.png');
+    this.load.image('estrella', 'assets/img/game/estrella.png');
+    this.load.image('estrella78', 'assets/img/game/estrella78.png');
+    this.load.image('estrella86', 'assets/img/game/estrella86.png');
+    this.load.image('estrella22', 'assets/img/game/estrella22.png');
 
     this.load.image('drone_de', 'assets/img/game/drone.de.png');
     this.load.image('drone_iz', 'assets/img/game/drone.iz.png');
 
-    // Música: si el archivo falta o está corrupto, marcamos la bandera y usamos el respaldo sintetizado
     this.musicLoadFailed = false;
     this.load.on('loaderror', (file) => {
         if (file.key === 'milonga') this.musicLoadFailed = true;
@@ -401,14 +446,14 @@ function preload() {
 
 function create() {
     gameScene = this;
-    this.isAnimating = false;
     this.aiming = false;
     this.drones = [];
+    this.activeProjectiles = [];
+    this.gameWon = false;
 
     this.add.image(640, 360, 'bg').setDisplaySize(1280, 720);
 
-    // Poste/nido: UN solo sprite que cambia de textura según la etapa
-    // (las imágenes del nido ya incluyen el poste, por eso no se dibujan superpuestos)
+    // Poste/nido: UN solo sprite que cambia de textura según la etapa (parado en el piso, sin flotar)
     this.nestPost = this.add.image(NEST_TARGET.x, GROUND_Y, 'base_poste')
         .setOrigin(0.5, 1)
         .setScale(NEST_SCALE)
@@ -417,16 +462,21 @@ function create() {
     this.targetRing = this.add.circle(NEST_TARGET.x, NEST_TARGET.y, NEST_TARGET.radius, 0xffffff, 0.06).setStrokeStyle(2, 0xffffff, 0.25).setDepth(1);
     this.tweens.add({ targets: this.targetRing, scale: { from: 1, to: 1.06 }, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
 
+    // Barra de defensa del nido (los drones la vacían con piedrazos; al llenarse, resta una etapa)
+    this.nestDefenseLabel = this.add.text(NEST_TARGET.x, NEST_TARGET.y + 90, '🛡️ Nido', { fontSize: '13px', fill: '#ecf0f1' }).setOrigin(0.5).setDepth(12);
+    this.nestDefenseBg = this.add.rectangle(NEST_TARGET.x, NEST_TARGET.y + 110, 130, 12, 0x0b1a2b, 0.7).setStrokeStyle(2, 0xffffff, 0.5).setDepth(11);
+    this.nestDefenseFill = this.add.rectangle(NEST_TARGET.x - 63, NEST_TARGET.y + 110, 0, 8, 0xe67e22, 1).setOrigin(0, 0.5).setDepth(12);
+
+    // Roberto: quieto, parado, sin flotar (sin tween de rebote)
     this.player = this.add.image(ROBERTO_X, GROUND_Y, 'rh_conpala')
         .setOrigin(0.5, 1)
         .setScale(ROBERTO_SCALE)
         .setDepth(4);
-    this.tweens.add({ targets: this.player, y: GROUND_Y - 6, duration: 1000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
 
     this.aimGraphics = this.add.graphics().setDepth(5);
 
     // HUD
-    this.uiTop = this.add.rectangle(640, 46, 1280, 92, 0x0b1a2b, 0.55).setDepth(10);
+    this.uiTop = this.add.rectangle(640, 65, 1280, 130, 0x0b1a2b, 0.55).setDepth(10);
 
     this.barBg = this.add.rectangle(210, 40, 320, 22, 0x0b1a2b, 0.6).setStrokeStyle(2, 0xffffff, 0.5).setDepth(11);
     this.barFill = this.add.rectangle(210 - 158, 40, 4, 18, 0x27ae60, 1).setOrigin(0, 0.5).setDepth(12);
@@ -434,6 +484,10 @@ function create() {
 
     this.energyBg = this.add.rectangle(210, 72, 320, 14, 0x0b1a2b, 0.6).setStrokeStyle(2, 0xffffff, 0.4).setDepth(11);
     this.energyFill = this.add.rectangle(210 - 158, 72, 316, 10, 0xe74c3c, 1).setOrigin(0, 0.5).setDepth(12);
+
+    // Botón de disparo especial (estrella titilando debajo de las barras)
+    this.specialBtnIcon = this.add.image(SPECIAL_BTN.x, SPECIAL_BTN.y, 'estrella').setDepth(12);
+    updateSpecialButtonVisual(this);
 
     this.scoreText = this.add.text(1260, 24, '🏆 0', { fontSize: '30px', fontStyle: 'bold', fill: '#ffffff' }).setOrigin(1, 0).setDepth(12);
     this.comboText = this.add.text(1260, 60, '', { fontSize: '18px', fontStyle: 'bold', fill: '#f1c40f' }).setOrigin(1, 0).setDepth(12);
@@ -457,16 +511,28 @@ function create() {
         AudioEngine.startSynthMusic();
     }
 
-    // --- Drones: objetivos voladores de bonus ---
-    this.time.addEvent({ delay: 4500, callback: () => spawnDrone(this), callbackScope: this, loop: true });
+    // --- Drones: objetivos voladores. Cada 3er dron lanza una piedra al nido ---
+    this.time.addEvent({
+        delay: 4500,
+        callback: () => { if (!this.gameWon) spawnDrone(this); },
+        callbackScope: this,
+        loop: true
+    });
 
-    // --- Input: arrastrar para apuntar, soltar para lanzar ---
+    // --- Input: apuntar y soltar para lanzar (o tocar la estrella especial) ---
     this.input.on('pointerdown', (pointer) => {
         if (document.querySelector(".screen.active.modal-overlay")) return;
-        if (this.isAnimating || this.projectile) return;
+        if (this.activeProjectiles.length > 0) return;
+
+        const distToBtn = Phaser.Math.Distance.Between(pointer.x, pointer.y, SPECIAL_BTN.x, SPECIAL_BTN.y);
+        if (distToBtn < SPECIAL_BTN.radius + 12) {
+            armSpecialShot(this);
+            return;
+        }
+
         this.aiming = true;
         this.dragStart = { x: pointer.x, y: pointer.y };
-        this.player.setTexture('rh_lanza1');
+        this.player.setTexture('rh_lanza1'); // apuntando
     });
 
     this.input.on('pointermove', (pointer) => {
@@ -486,7 +552,7 @@ function create() {
             this.player.setTexture('rh_conpala');
             return;
         }
-        launchMud(this, pointer);
+        launchShot(this, pointer);
     });
 }
 
@@ -519,12 +585,12 @@ function drawAimLine(scene, pointer) {
     }
 }
 
-function launchMud(scene, pointer) {
+// Secuencia de lanzamiento tal como la pidió el usuario:
+// pointerdown (apuntar) -> lanza1 | pointerup (dispara) -> lanza2 -> (100ms) lanza3 + SALE EL PROYECTIL -> (400ms) conpala
+function launchShot(scene, pointer) {
     const dx = pointer.x - LAUNCH_POINT.x;
     const dy = pointer.y - LAUNCH_POINT.y;
-    let dist = Math.sqrt(dx * dx + dy * dy);
-
-    dist = Math.min(dist, MAX_DRAG);
+    let dist = Math.min(Math.sqrt(dx * dx + dy * dy), MAX_DRAG);
     const angle = Math.atan2(dy, dx);
     const power = dist / MAX_DRAG;
 
@@ -533,53 +599,90 @@ function launchMud(scene, pointer) {
     updateHUD();
     AudioEngine.launch();
 
-    // Secuencia de lanzamiento: lanza1 ya estaba puesta al apuntar -> lanza2 -> lanza3 -> conpala
-    scene.player.setTexture('rh_lanza2');
-    scene.time.delayedCall(90, () => scene.player.setTexture('rh_lanza3'));
-    scene.time.delayedCall(280, () => scene.player.setTexture('rh_conpala'));
+    const usingSpecial = specialModeArmed;
+    specialModeArmed = false;
+    updateSpecialButtonVisual(scene);
 
-    const vx = -Math.cos(angle) * power * 900;
-    const vy = -Math.sin(angle) * power * 900;
+    scene.player.setTexture('rh_lanza2'); // dispara / inicia el impulso
 
-    const mud = scene.physics.add.image(LAUNCH_POINT.x, LAUNCH_POINT.y, 'proyectil_barro').setScale(MUD_SCALE).setDepth(6);
-    mud.body.setAllowGravity(true);
-    mud.body.setVelocity(vx, vy);
-    mud.body.setCircle(mud.width * 0.3);
-    scene.projectile = mud;
+    scene.time.delayedCall(100, () => {
+        scene.player.setTexture('rh_lanza3'); // suelta la pala
+        if (usingSpecial) {
+            AudioEngine.special();
+            fireSpecialStars(scene, angle, power);
+        } else {
+            const vx = -Math.cos(angle) * power * 900;
+            const vy = -Math.sin(angle) * power * 900;
+            spawnProjectile(scene, 'proyectil_barro', vx, vy, MUD_SCALE);
+        }
+    });
 
-    scene.isAnimating = true;
+    scene.time.delayedCall(400, () => {
+        scene.player.setTexture('rh_conpala'); // vuelve a la pose de descanso
+    });
+}
+
+// Disparo especial "The Blues": se separa en 3 estrellas (78, 86 y 22)
+function fireSpecialStars(scene, baseAngle, power) {
+    const spreadDeg = 9;
+    const configs = [
+        { offset: -spreadDeg, tex: 'estrella78' },
+        { offset: 0, tex: 'estrella86' },
+        { offset: spreadDeg, tex: 'estrella22' }
+    ];
+    configs.forEach(cfg => {
+        const a = baseAngle + Phaser.Math.DegToRad(cfg.offset);
+        const vx = -Math.cos(a) * power * 900;
+        const vy = -Math.sin(a) * power * 900;
+        spawnProjectile(scene, cfg.tex, vx, vy, STAR_PROJECTILE_SCALE);
+    });
+}
+
+function spawnProjectile(scene, texKey, vx, vy, scaleToUse) {
+    const proj = scene.physics.add.image(LAUNCH_POINT.x, LAUNCH_POINT.y, texKey).setScale(scaleToUse).setDepth(6);
+    proj.body.setAllowGravity(true);
+    proj.body.setVelocity(vx, vy);
+    proj.body.setCircle(proj.width * 0.3);
+    scene.activeProjectiles.push(proj);
 
     const checkLoop = scene.time.addEvent({
         delay: 16,
         loop: true,
         callback: () => {
-            if (!mud.active) { checkLoop.remove(); return; }
+            if (!proj.active) { checkLoop.remove(); return; }
+            proj.rotation += 0.2;
 
-            mud.rotation += 0.25;
-
-            const dNest = Phaser.Math.Distance.Between(mud.x, mud.y, NEST_TARGET.x, NEST_TARGET.y);
+            const dNest = Phaser.Math.Distance.Between(proj.x, proj.y, NEST_TARGET.x, NEST_TARGET.y);
             if (dNest < NEST_TARGET.radius) {
                 checkLoop.remove();
-                onHit(scene, mud);
+                resolveProjectile(scene, proj);
+                onHit(scene);
                 return;
             }
 
             for (const drone of scene.drones) {
                 if (!drone.active) continue;
-                const dDrone = Phaser.Math.Distance.Between(mud.x, mud.y, drone.x, drone.y);
+                const dDrone = Phaser.Math.Distance.Between(proj.x, proj.y, drone.x, drone.y);
                 if (dDrone < 65) {
                     checkLoop.remove();
-                    onDroneHit(scene, mud, drone);
+                    resolveProjectile(scene, proj);
+                    onDroneHit(scene, drone);
                     return;
                 }
             }
 
-            if (mud.y > 760 || mud.x < -50 || mud.x > 1330) {
+            if (proj.y > 760 || proj.x < -50 || proj.x > 1330) {
                 checkLoop.remove();
-                onMiss(scene, mud);
+                resolveProjectile(scene, proj);
+                onMiss(scene);
             }
         }
     });
+}
+
+function resolveProjectile(scene, proj) {
+    proj.destroy();
+    scene.activeProjectiles = scene.activeProjectiles.filter(p => p !== proj);
 }
 
 function starBurst(scene, x, y, quantity = 14, lifespan = 550) {
@@ -595,12 +698,8 @@ function starBurst(scene, x, y, quantity = 14, lifespan = 550) {
     scene.time.delayedCall(lifespan + 50, () => emitter.destroy());
 }
 
-function onHit(scene, mud) {
-    mud.destroy();
-    scene.projectile = null;
-    scene.isAnimating = false;
+function onHit(scene) {
     hits++;
-
     combo++;
     bestCombo = Math.max(bestCombo, combo);
     const comboBonus = (combo - 1) * 15;
@@ -631,6 +730,7 @@ function onHit(scene, mud) {
     updateHUD();
 
     if (nestStage >= 6) {
+        scene.gameWon = true;
         scene.time.delayedCall(900, winGame);
         return;
     }
@@ -640,14 +740,11 @@ function onHit(scene, mud) {
     }
 }
 
-function onDroneHit(scene, mud, drone) {
-    mud.destroy();
-    scene.projectile = null;
-    scene.isAnimating = false;
-
+function onDroneHit(scene, drone) {
     const dx = drone.x, dy = drone.y;
     drone.destroy();
     scene.drones = scene.drones.filter(d => d !== drone);
+    dronesDestroyed++;
 
     const bonus = 30;
     score += bonus;
@@ -662,10 +759,7 @@ function onDroneHit(scene, mud, drone) {
     }
 }
 
-function onMiss(scene, mud) {
-    mud.destroy();
-    scene.projectile = null;
-    scene.isAnimating = false;
+function onMiss(scene) {
     combo = 0;
     scene.comboText.setText('');
     AudioEngine.miss();
@@ -676,6 +770,7 @@ function onMiss(scene, mud) {
     }
 }
 
+// --- Drones: vuelan cruzando la pantalla. Cada 3er dron generado le tira una piedra al nido ---
 function spawnDrone(scene) {
     if (!scene || !scene.sys || document.querySelector(".screen.active.modal-overlay")) return;
 
@@ -690,10 +785,88 @@ function spawnDrone(scene) {
         x = 1380; vx = -speed; texKey = 'drone_iz'; // vuela hacia la izquierda
     }
 
+    dronesSpawnedCount++;
+    const isThrower = (dronesSpawnedCount % 3 === 0);
+
     const drone = scene.physics.add.image(x, y, texKey).setScale(DRONE_SCALE).setDepth(4);
     drone.body.setAllowGravity(false);
     drone.body.setVelocity(vx, 0);
+    drone.isThrower = isThrower;
+    drone.hasThrown = false;
+    if (isThrower) drone.setTint(0xffb3b3);
+
     scene.drones.push(drone);
+}
+
+function throwRockAtNest(scene, fromX, fromY) {
+    const rock = scene.add.image(fromX, fromY, 'proyectil_barro').setScale(MUD_SCALE * 1.15).setTint(0x777777).setDepth(6);
+    scene.tweens.add({
+        targets: rock,
+        x: NEST_TARGET.x,
+        y: NEST_TARGET.y,
+        duration: 550,
+        ease: 'Quad.easeIn',
+        onComplete: () => {
+            rock.destroy();
+            if (scene.gameWon) return;
+
+            nestDefense++;
+            AudioEngine.thud();
+            scene.cameras.main.shake(140, 0.01);
+            updateNestDefenseBar(scene);
+
+            if (nestDefense >= 3) {
+                nestDefense = 0;
+                updateNestDefenseBar(scene);
+                if (nestStage > 0) {
+                    nestStage--;
+                    scene.nestPost.setTexture(nestStage === 0 ? 'base_poste' : `nest_${nestStage}`);
+                    floatingText(scene, NEST_TARGET.x, NEST_TARGET.y - 30, '💥 -1 construcción', '#e74c3c');
+                    updateHUD();
+                }
+            }
+        }
+    });
+}
+
+function updateNestDefenseBar(scene) {
+    const ratio = nestDefense / 3;
+    scene.tweens.add({ targets: scene.nestDefenseFill, width: 126 * ratio, duration: 200 });
+}
+
+// --- Disparo especial ---
+function armSpecialShot(scene) {
+    if (!specialShotAvailable || scene.aiming || scene.activeProjectiles.length > 0) return;
+    specialShotAvailable = false;
+    specialModeArmed = true;
+    AudioEngine.special();
+    floatingText(scene, SPECIAL_BTN.x, SPECIAL_BTN.y - 20, '⭐ ¡Listo, apuntá!', '#3498db');
+    updateSpecialButtonVisual(scene);
+}
+
+function updateSpecialButtonVisual(scene) {
+    if (scene.specialBtnBlink) { scene.specialBtnBlink.stop(); scene.specialBtnBlink = null; }
+    const baseScale = STAR_SCALE * 1.7;
+
+    if (specialModeArmed) {
+        scene.specialBtnIcon.setTint(0x3498db);
+        scene.specialBtnIcon.setAlpha(1);
+        scene.specialBtnIcon.setScale(baseScale * 1.2);
+    } else if (specialShotAvailable) {
+        scene.specialBtnIcon.setTint(0xffffff);
+        scene.specialBtnIcon.setAlpha(1);
+        scene.specialBtnIcon.setScale(baseScale);
+        scene.specialBtnBlink = scene.tweens.add({
+            targets: scene.specialBtnIcon,
+            alpha: { from: 1, to: 0.35 },
+            scale: { from: baseScale, to: baseScale * 1.15 },
+            duration: 550, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+        });
+    } else {
+        scene.specialBtnIcon.setTint(0x555555);
+        scene.specialBtnIcon.setAlpha(0.6);
+        scene.specialBtnIcon.setScale(baseScale);
+    }
 }
 
 function floatingText(scene, x, y, msg, color) {
@@ -712,6 +885,16 @@ function floatingText(scene, x, y, msg, color) {
 
 function update() {
     if (!gameScene || !gameScene.drones) return;
+
+    gameScene.drones.forEach(d => {
+        if (d.active && d.isThrower && !d.hasThrown && !gameScene.gameWon) {
+            if (Math.abs(d.x - NEST_TARGET.x) < 60) {
+                d.hasThrown = true;
+                throwRockAtNest(gameScene, d.x, d.y);
+            }
+        }
+    });
+
     gameScene.drones = gameScene.drones.filter(d => {
         if (!d.active) return false;
         if (d.x < -150 || d.x > 1430) { d.destroy(); return false; }
@@ -758,6 +941,9 @@ function triggerMateBreak() {
             stopMateAnimation();
             shotsFired = 0;
             energy = 100;
+            specialShotAvailable = true;
+            specialModeArmed = false;
+            if (gameScene) updateSpecialButtonVisual(gameScene);
             updateHUD();
             setTimeout(() => closeModal("mate-break-screen"), 700);
         }
@@ -781,15 +967,51 @@ function stopMateAnimation() {
     mateAnimInterval = null;
 }
 
+// --- 8. ESTRELLAS FINALES (estilo Mundial) ---
+// estrella78 se gana siempre al terminar el nido.
+// estrella86 se suma si cumple UNO de los dos desafíos (3+ drones derribados o 500+ puntos).
+// estrella22 se suma si cumple AMBOS desafíos.
+function computeStars() {
+    const challengeDrones = dronesDestroyed >= 3;
+    const challengeScore = score >= 500;
+    let count = 1;
+    if (challengeDrones || challengeScore) count = 2;
+    if (challengeDrones && challengeScore) count = 3;
+    return count;
+}
+
+function renderStars(starCount) {
+    const container = document.getElementById('stars-result');
+    container.innerHTML = '';
+    container.classList.remove('special-3star');
+    const starFiles = [
+        'assets/img/game/estrella78.png',
+        'assets/img/game/estrella86.png',
+        'assets/img/game/estrella22.png'
+    ];
+    for (let i = 0; i < starCount; i++) {
+        const img = document.createElement('img');
+        img.src = starFiles[i];
+        img.alt = 'Estrella';
+        container.appendChild(img);
+        setTimeout(() => img.classList.add('pop-in'), i * 450);
+    }
+    if (starCount === 3) {
+        setTimeout(() => {
+            container.classList.add('special-3star');
+            lanzarConfetiCelesteYBlanco();
+        }, starCount * 450 + 150);
+    }
+}
+
 function winGame() {
     totalAccumulatedScore += score;
     localStorage.setItem('rh_total_score', String(totalAccumulatedScore));
 
-    const accuracy = shotsFired > 0 ? Math.round((hits / shotsFired) * 100) : 0;
-    const stars = accuracy >= 80 ? "⭐⭐⭐" : (accuracy >= 50 ? "⭐⭐" : "⭐");
+    const starCount = computeStars();
+    renderStars(starCount);
 
-    document.getElementById("stars-result").innerText = stars;
-    document.getElementById("accuracy-line").textContent = `🎯 Precisión: ${accuracy}% (${hits}/${shotsFired} tiros)`;
+    document.getElementById("accuracy-line").textContent = `🎯 ${hits} aciertos al nido · 🛸 ${dronesDestroyed} drones derribados`;
     document.getElementById("final-score").innerText = score;
     document.getElementById("total-score").innerText = totalAccumulatedScore;
     const comboLine = document.getElementById("best-combo-line");
@@ -800,7 +1022,7 @@ function winGame() {
     AudioEngine.win();
 }
 
-// --- 8. CERTIFICADO DESCARGABLE (usa la plantilla real con el recuadro celeste) ---
+// --- 9. CERTIFICADO DESCARGABLE ---
 function fitText(ctx, text, maxWidth, baseSize) {
     let size = baseSize;
     ctx.font = `bold ${size}px Arial`;
@@ -821,7 +1043,6 @@ function downloadCertificate() {
         cvs.height = img.height;
         ctx.drawImage(img, 0, 0);
 
-        // Recuadro celeste de la plantilla (medido sobre la imagen original 1080x1920)
         const boxCenterX = 343;
         const boxLeft = 102, boxRight = 584;
         const boxWidth = boxRight - boxLeft - 40;
