@@ -2,7 +2,7 @@
 // ⚠️ Esto es solo una traba básica del lado del cliente, NO es seguridad real.
 // Cualquiera que vea el código fuente puede encontrar esta contraseña.
 // Para seguridad real hay que usar Firebase Authentication y reglas de la base de datos
-// que exijan estar autenticado para escribir en "provinceStatus". Cambiá esta clave igual.
+// que exijan estar autenticado para escribir. Cambiá esta clave igual.
 const ADMIN_PASSWORD = "hornero2026";
 
 const firebaseConfig = {
@@ -54,6 +54,7 @@ document.addEventListener("DOMContentLoaded", () => {
         sessionStorage.removeItem("rh_admin_ok");
         location.reload();
     });
+    document.getElementById("btn-refresh").addEventListener("click", loadEverything);
 
     if (sessionStorage.getItem("rh_admin_ok") === "1") {
         showAdminPanel();
@@ -73,11 +74,110 @@ function tryLogin() {
 function showAdminPanel() {
     document.getElementById("login-screen").style.display = "none";
     document.getElementById("admin-panel").style.display = "block";
+    loadEverything();
+}
+
+function loadEverything() {
+    loadStats();
     loadProvinceAdmin();
     loadVotesAdmin();
     loadRankingAdmin();
 }
 
+// --- DASHBOARD DE MÉTRICAS ---
+function loadStats() {
+    Promise.all([
+        database.ref('stats').once('value'),
+        database.ref('sessions').once('value'),
+        database.ref('votacion').once('value'),
+        database.ref('ranking').once('value')
+    ]).then(([statsSnap, sessionsSnap, votesSnap, rankingSnap]) => {
+        const stats = statsSnap.exists() ? statsSnap.val() : {};
+        const sessions = [];
+        if (sessionsSnap.exists()) sessionsSnap.forEach(c => sessions.push(c.val()));
+        const votes = votesSnap.exists() ? votesSnap.val() : {};
+        const rankingArr = [];
+        if (rankingSnap.exists()) rankingSnap.forEach(c => rankingArr.push(c.val()));
+
+        const gamesStarted = stats.gamesStarted || sessions.length || 0;
+        const gamesCompleted = stats.gamesCompleted || sessions.length || 0;
+        document.getElementById('stat-games-started').textContent = gamesStarted;
+        document.getElementById('stat-games-completed').textContent = gamesCompleted;
+        document.getElementById('stat-completion-rate').textContent =
+            gamesStarted > 0 ? Math.round((gamesCompleted / gamesStarted) * 100) + '%' : '—';
+
+        const provPlaysRaw = stats.provinciaPlays || {};
+        let provEntries = Object.keys(provPlaysRaw).map(id => ({ id, count: provPlaysRaw[id] }));
+        if (provEntries.length === 0 && sessions.length > 0) {
+            const counts = {};
+            sessions.forEach(s => {
+                const key = s.provinciaId || s.provincia || 'desconocida';
+                counts[key] = (counts[key] || 0) + 1;
+            });
+            provEntries = Object.keys(counts).map(id => ({ id, count: counts[id] }));
+        }
+        provEntries.sort((a, b) => b.count - a.count);
+        document.getElementById('stat-top-province').textContent =
+            provEntries.length ? provinceLabel(provEntries[0].id, sessions) : '—';
+
+        const totalSeconds = sessions.reduce((sum, s) => sum + (s.duracionSegundos || 0), 0);
+        document.getElementById('stat-total-time').textContent = formatDuration(totalSeconds);
+        const avgSeconds = sessions.length ? Math.round(totalSeconds / sessions.length) : 0;
+        document.getElementById('stat-avg-time').textContent = sessions.length ? formatDuration(avgSeconds) : '—';
+
+        const totalMateSeconds = sessions.reduce((sum, s) => sum + (s.mateSegundos || 0), 0);
+        document.getElementById('stat-mate-minutes').textContent = Math.round(totalMateSeconds / 60) + ' min';
+
+        const totalVotes = Object.values(votes).reduce((a, b) => a + b, 0);
+        document.getElementById('stat-total-votes').textContent = totalVotes;
+
+        const topScore = rankingArr.length ? Math.max(...rankingArr.map(r => r.puntaje || 0)) : 0;
+        document.getElementById('stat-top-score').textContent = topScore;
+
+        renderProvinceBreakdown(provEntries, sessions);
+    }).catch(err => {
+        console.log('Error cargando estadísticas:', err);
+        document.getElementById('province-breakdown-list').innerHTML = `Error de conexión: ${err.message}`;
+    });
+}
+
+function provinceLabel(id, sessions) {
+    const found = sessions.find(s => s.provinciaId === id);
+    if (found) return found.provincia;
+    const p = ALL_PROVINCES.find(pv => pv.id === id);
+    return p ? p.name : id;
+}
+
+function formatDuration(totalSeconds) {
+    if (!totalSeconds) return '0 min';
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.round((totalSeconds % 3600) / 60);
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m} min`;
+}
+
+function renderProvinceBreakdown(provEntries, sessions) {
+    const container = document.getElementById('province-breakdown-list');
+    if (!provEntries.length) {
+        container.innerHTML = 'Todavía no hay datos de partidas.';
+        return;
+    }
+    const max = Math.max(...provEntries.map(e => e.count));
+    container.innerHTML = '';
+    provEntries.slice(0, 10).forEach(e => {
+        const row = document.createElement('div');
+        row.className = 'breakdown-row';
+        const label = provinceLabel(e.id, sessions);
+        row.innerHTML = `
+            <span class="breakdown-name">${label}</span>
+            <div class="breakdown-bar-bg"><div class="breakdown-bar-fill" style="width:${(e.count / max * 100)}%"></div></div>
+            <span class="breakdown-count">${e.count}</span>
+        `;
+        container.appendChild(row);
+    });
+}
+
+// --- PROVINCIAS (habilitar / bloquear / votación) ---
 function loadProvinceAdmin() {
     database.ref("provinceStatus").once("value").then(snap => {
         const overrides = snap.exists() ? snap.val() : {};
@@ -132,6 +232,7 @@ function loadProvinceAdmin() {
     });
 }
 
+// --- VOTOS ---
 function loadVotesAdmin() {
     database.ref("votacion").once("value").then(snap => {
         const votes = snap.exists() ? snap.val() : {};
@@ -158,6 +259,7 @@ function loadVotesAdmin() {
     });
 }
 
+// --- RANKING ---
 function loadRankingAdmin() {
     database.ref("ranking").orderByChild("puntaje").limitToLast(15).once("value").then(snap => {
         const list = document.getElementById("admin-ranking-list");

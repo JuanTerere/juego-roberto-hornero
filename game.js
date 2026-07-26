@@ -27,6 +27,10 @@ let specialShotAvailable = true;
 let specialModeArmed = false;
 let totalAccumulatedScore = parseInt(localStorage.getItem('rh_total_score') || '0', 10);
 
+// --- Estadísticas de la partida (para el panel admin / sponsors) ---
+let gameStartTime = 0;
+let mateBreaksCount = 0;
+
 // --- 2.1 AUDIO ---
 const AudioEngine = (() => {
     let ctx;
@@ -395,7 +399,12 @@ function startGamePhaser(prov) {
     nestDefense = 0;
     specialShotAvailable = true;
     specialModeArmed = false;
+    gameStartTime = Date.now();
+    mateBreaksCount = 0;
     showScreen(null);
+
+    database.ref('stats/gamesStarted').transaction(c => (c || 0) + 1);
+    database.ref('stats/provinciaPlays/' + prov.id).transaction(c => (c || 0) + 1);
 
     if (game) game.destroy(true);
 
@@ -921,6 +930,7 @@ let mateLoadTimer = null;
 
 // Dura 10 segundos: +10% de energía por segundo
 function triggerMateBreak() {
+    mateBreaksCount++;
     openModal("mate-break-screen");
     const progress = document.getElementById("loader-progress");
     const energyText = document.getElementById("energy-text");
@@ -1007,6 +1017,20 @@ function renderStars(starCount) {
 function winGame() {
     totalAccumulatedScore += score;
     localStorage.setItem('rh_total_score', String(totalAccumulatedScore));
+
+    const durationSeconds = Math.round((Date.now() - gameStartTime) / 1000);
+    database.ref('sessions').push({
+        provincia: currentProv ? currentProv.name : 'Desconocida',
+        provinciaId: currentProv ? currentProv.id : 'desconocida',
+        duracionSegundos: durationSeconds,
+        mateBreaks: mateBreaksCount,
+        mateSegundos: mateBreaksCount * 10,
+        puntaje: score,
+        dronesDerribados: dronesDestroyed,
+        completado: true,
+        fecha: new Date().toISOString()
+    }).catch(err => console.log("No se pudo registrar la sesión:", err));
+    database.ref('stats/gamesCompleted').transaction(c => (c || 0) + 1);
 
     const starCount = computeStars();
     renderStars(starCount);

@@ -12,8 +12,9 @@
 
     <div id="login-screen" class="login-wrap">
         <div class="login-box">
-            <h1>🔐 Panel Admin</h1>
-            <p>Roberto Hornero - Construyendo Patria</p>
+            <img src="assets/img/roberto/rh-conpala.png" alt="Roberto Hornero" class="login-logo">
+            <h1>Panel Admin</h1>
+            <p>Roberto Hornero — Construyendo Patria</p>
             <input type="password" id="admin-password" placeholder="Contraseña">
             <button id="btn-login">Ingresar</button>
             <p id="login-error" class="login-error"></p>
@@ -22,12 +23,48 @@
 
     <div id="admin-panel" class="admin-wrap" style="display:none;">
         <header class="admin-header">
-            <h1>🏗️ Panel Admin — Roberto Hornero</h1>
-            <button id="btn-logout" class="btn-logout">Salir</button>
+            <div class="admin-header-title">
+                <h1>🏗️ Roberto Hornero</h1>
+                <span>Panel de Administración</span>
+            </div>
+            <div class="admin-header-actions">
+                <button id="btn-refresh" class="btn-refresh">🔄 Actualizar</button>
+                <button id="btn-logout" class="btn-logout">Salir</button>
+            </div>
         </header>
 
+        <!-- SPONSOR -->
+        <section class="sponsor-banner" id="sponsor-banner">
+            <span class="sponsor-label">Espacio para sponsor</span>
+            <p class="sponsor-hint">Poné acá el logo o banner del sponsor. Reemplazá esta sección en <code>admin.html</code> (buscá <code>sponsor-banner</code>) por una imagen, o pedime que te lo arme cuando tengas el logo.</p>
+        </section>
+
+        <!-- DASHBOARD DE MÉTRICAS -->
         <section class="admin-section">
-            <h2>Provincias</h2>
+            <h2>📊 Métricas del juego</h2>
+            <p class="admin-hint">Datos reales de uso — útiles para mejorar el juego o mostrarle a un sponsor el alcance y el engagement.</p>
+
+            <div class="stats-grid" id="stats-grid">
+                <div class="stat-card"><div class="stat-icon">🎮</div><div class="stat-value" id="stat-games-started">–</div><div class="stat-label">Partidas iniciadas</div></div>
+                <div class="stat-card"><div class="stat-icon">🏆</div><div class="stat-value" id="stat-games-completed">–</div><div class="stat-label">Nidos completados</div></div>
+                <div class="stat-card"><div class="stat-icon">📈</div><div class="stat-value" id="stat-completion-rate">–</div><div class="stat-label">Tasa de finalización</div></div>
+                <div class="stat-card"><div class="stat-icon">📍</div><div class="stat-value" id="stat-top-province">–</div><div class="stat-label">Provincia más jugada</div></div>
+                <div class="stat-card"><div class="stat-icon">⏱️</div><div class="stat-value" id="stat-total-time">–</div><div class="stat-label">Tiempo total jugado</div></div>
+                <div class="stat-card"><div class="stat-icon">⏳</div><div class="stat-value" id="stat-avg-time">–</div><div class="stat-label">Duración promedio/partida</div></div>
+                <div class="stat-card"><div class="stat-icon">🧉</div><div class="stat-value" id="stat-mate-minutes">–</div><div class="stat-label">Minutos viendo a RH tomar mate</div></div>
+                <div class="stat-card"><div class="stat-icon">🗳️</div><div class="stat-value" id="stat-total-votes">–</div><div class="stat-label">Votos totales</div></div>
+                <div class="stat-card"><div class="stat-icon">🥇</div><div class="stat-value" id="stat-top-score">–</div><div class="stat-label">Puntaje más alto guardado</div></div>
+            </div>
+
+            <div class="province-breakdown">
+                <h3>Partidas por provincia</h3>
+                <div id="province-breakdown-list" class="breakdown-list">Cargando...</div>
+            </div>
+        </section>
+
+        <!-- PROVINCIAS -->
+        <section class="admin-section">
+            <h2>🗺️ Provincias</h2>
             <p class="admin-hint">
                 Cambiá el estado de cada provincia y guardá. Los cambios se reflejan en el juego al instante
                 (el jugador los ve la próxima vez que entra a "Elegí una Provincia").
@@ -37,14 +74,16 @@
             <div id="admin-provinces-list" class="admin-provinces-list">Cargando...</div>
         </section>
 
+        <!-- VOTACIÓN -->
         <section class="admin-section">
-            <h2>Votación de la comunidad</h2>
+            <h2>🗳️ Votación de la comunidad</h2>
             <p class="admin-hint">Votos actuales por provincia. Podés resetear el conteo de una provincia.</p>
             <div id="admin-votes-list" class="admin-votes-list">Cargando...</div>
         </section>
 
+        <!-- RANKING -->
         <section class="admin-section">
-            <h2>Ranking de jugadores</h2>
+            <h2>🏅 Ranking de jugadores</h2>
             <p class="admin-hint">Últimos puntajes guardados (para verificar que Firebase esté guardando bien).</p>
             <div id="admin-ranking-list" class="admin-ranking-list">Cargando...</div>
         </section>
