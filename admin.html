@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="admin.css">
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 </head>
 <body>
 
@@ -15,7 +16,8 @@
             <img src="assets/img/roberto/rh-conpala.png" alt="Roberto Hornero" class="login-logo">
             <h1>Panel Admin</h1>
             <p>Roberto Hornero — Construyendo Patria</p>
-            <input type="password" id="admin-password" placeholder="Contraseña">
+            <input type="email" id="admin-email" placeholder="Email" autocomplete="username">
+            <input type="password" id="admin-password" placeholder="Contraseña" autocomplete="current-password">
             <button id="btn-login">Ingresar</button>
             <p id="login-error" class="login-error"></p>
         </div>

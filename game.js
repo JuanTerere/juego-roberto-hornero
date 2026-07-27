@@ -119,7 +119,7 @@ const REGIONS_DATA = [
             { id: "mendoza", name: "Mendoza", status: "bloqueada" },
             { id: "sanjuan", name: "San Juan", status: "bloqueada" },
             { id: "sanluis", name: "San Luis", status: "bloqueada" },
-            { id: "larioja", name: "La Rioja", status:  "habilitada", bg: "larioja-catedral" }
+            { id: "larioja", name: "La Rioja", status: "bloqueada" }
         ]
     },
     {
@@ -372,7 +372,7 @@ let gameScene;
 let currentProv;
 
 const GROUND_Y = 712;
-const ROBERTO_SCALE = 0.5;
+const ROBERTO_SCALE = 0.055;
 const ROBERTO_X = 200;
 const NEST_SCALE = 0.18;
 const MUD_SCALE = 0.016;
@@ -381,9 +381,10 @@ const STAR_PROJECTILE_SCALE = 0.018; // tamaño de cada estrella del disparo esp
 const DRONE_SCALE = 0.13;
 const SPECIAL_BTN = { x: 210, y: 108, radius: 26 };
 
-const LAUNCH_POINT = { x: ROBERTO_X, y: GROUND_Y - 110 };
+const LAUNCH_POINT = { x: ROBERTO_X, y: GROUND_Y - 150 };
 const NEST_TARGET = { x: 980, y: GROUND_Y - 240, radius: 75 };
-const MAX_DRAG = 160;
+const MAX_DRAG = 140;              // cabe entero dentro del canvas (antes 160 se salía de pantalla)
+const SHOT_POWER = 1050;           // impulso máximo del disparo (antes 900)
 const GRAVITY_Y = 900;
 
 function startGamePhaser(prov) {
@@ -578,8 +579,8 @@ function drawAimLine(scene, pointer) {
     scene.aimGraphics.lineBetween(LAUNCH_POINT.x, LAUNCH_POINT.y, pullX, pullY);
 
     const power = dist / MAX_DRAG;
-    const vx = -Math.cos(angle) * power * 900;
-    const vy = -Math.sin(angle) * power * 900;
+    const vx = -Math.cos(angle) * power * SHOT_POWER;
+    const vy = -Math.sin(angle) * power * SHOT_POWER;
 
     scene.aimGraphics.fillStyle(0xffffff, 0.7);
     let px = LAUNCH_POINT.x, py = LAUNCH_POINT.y;
@@ -595,7 +596,7 @@ function drawAimLine(scene, pointer) {
 }
 
 // Secuencia de lanzamiento tal como la pidió el usuario:
-// pointerdown (apuntar) -> rh-lanza1 | pointerup (dispara) -> rh-lanza2 -> (100ms) rh-lanza3 + SALE EL PROYECTIL -> (400ms) rh-conpala
+// pointerdown (apuntar) -> lanza1 | pointerup (dispara) -> lanza2 -> (100ms) lanza3 + SALE EL PROYECTIL -> (400ms) conpala
 function launchShot(scene, pointer) {
     const dx = pointer.x - LAUNCH_POINT.x;
     const dy = pointer.y - LAUNCH_POINT.y;
@@ -612,22 +613,22 @@ function launchShot(scene, pointer) {
     specialModeArmed = false;
     updateSpecialButtonVisual(scene);
 
-    scene.player.setTexture('rh-lanza2'); // dispara / inicia el impulso
+    scene.player.setTexture('rh_lanza2'); // dispara / inicia el impulso
 
     scene.time.delayedCall(100, () => {
-        scene.player.setTexture('rh-lanza3'); // suelta la pala
+        scene.player.setTexture('rh_lanza3'); // suelta la pala
         if (usingSpecial) {
             AudioEngine.special();
             fireSpecialStars(scene, angle, power);
         } else {
-            const vx = -Math.cos(angle) * power * 900;
-            const vy = -Math.sin(angle) * power * 900;
+            const vx = -Math.cos(angle) * power * SHOT_POWER;
+            const vy = -Math.sin(angle) * power * SHOT_POWER;
             spawnProjectile(scene, 'proyectil_barro', vx, vy, MUD_SCALE);
         }
     });
 
     scene.time.delayedCall(400, () => {
-        scene.player.setTexture('rh-conpala'); // vuelve a la pose de descanso
+        scene.player.setTexture('rh_conpala'); // vuelve a la pose de descanso
     });
 }
 
@@ -641,8 +642,8 @@ function fireSpecialStars(scene, baseAngle, power) {
     ];
     configs.forEach(cfg => {
         const a = baseAngle + Phaser.Math.DegToRad(cfg.offset);
-        const vx = -Math.cos(a) * power * 900;
-        const vy = -Math.sin(a) * power * 900;
+        const vx = -Math.cos(a) * power * SHOT_POWER;
+        const vy = -Math.sin(a) * power * SHOT_POWER;
         spawnProjectile(scene, cfg.tex, vx, vy, STAR_PROJECTILE_SCALE);
     });
 }

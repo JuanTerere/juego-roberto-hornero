@@ -1,9 +1,8 @@
 // --- CONFIGURACIÓN ---
-// ⚠️ Esto es solo una traba básica del lado del cliente, NO es seguridad real.
-// Cualquiera que vea el código fuente puede encontrar esta contraseña.
-// Para seguridad real hay que usar Firebase Authentication y reglas de la base de datos
-// que exijan estar autenticado para escribir. Cambiá esta clave igual.
-const ADMIN_PASSWORD = "hornero2026";
+// Autenticación real con Firebase: solo esta cuenta (UID) puede entrar al panel.
+// El UID se obtiene de Firebase Console → Authentication → Users, después de crear
+// el usuario admin con email/contraseña.
+const ALLOWED_ADMIN_UID = "z80a9Ma3g5NAhUrdqvVy2fldcv82";
 
 const firebaseConfig = {
     apiKey: "AIzaSyB8bRUNCpopv-cdpGmGwFnxh0dAvt8NHQg",
@@ -16,6 +15,7 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
+const auth = firebase.auth();
 
 // Misma lista de provincias que usa el juego (los "id" tienen que coincidir con game.js)
 const ALL_PROVINCES = [
@@ -51,24 +51,46 @@ document.addEventListener("DOMContentLoaded", () => {
         if (e.key === "Enter") tryLogin();
     });
     document.getElementById("btn-logout").addEventListener("click", () => {
-        sessionStorage.removeItem("rh_admin_ok");
-        location.reload();
+        auth.signOut();
     });
     document.getElementById("btn-refresh").addEventListener("click", loadEverything);
 
-    if (sessionStorage.getItem("rh_admin_ok") === "1") {
-        showAdminPanel();
-    }
+    // Firebase mantiene la sesión guardada entre visitas: si ya inició sesión antes
+    // y sigue siendo el admin autorizado, entra directo sin pedir contraseña de nuevo.
+    auth.onAuthStateChanged(user => {
+        if (user && user.uid === ALLOWED_ADMIN_UID) {
+            showAdminPanel();
+        } else {
+            if (user) auth.signOut(); // logueado pero no es el admin autorizado
+            document.getElementById("login-screen").style.display = "flex";
+            document.getElementById("admin-panel").style.display = "none";
+        }
+    });
 });
 
 function tryLogin() {
+    const email = document.getElementById("admin-email").value.trim();
     const pass = document.getElementById("admin-password").value;
-    if (pass === ADMIN_PASSWORD) {
-        sessionStorage.setItem("rh_admin_ok", "1");
-        showAdminPanel();
-    } else {
-        document.getElementById("login-error").textContent = "Contraseña incorrecta.";
+    const errEl = document.getElementById("login-error");
+    errEl.textContent = "";
+
+    if (!email || !pass) {
+        errEl.textContent = "Ingresá tu email y contraseña.";
+        return;
     }
+
+    auth.signInWithEmailAndPassword(email, pass)
+        .then(cred => {
+            if (cred.user.uid !== ALLOWED_ADMIN_UID) {
+                errEl.textContent = "Esta cuenta no tiene permisos de administrador.";
+                auth.signOut();
+                return;
+            }
+            // onAuthStateChanged se encarga de mostrar el panel
+        })
+        .catch(err => {
+            errEl.textContent = "No se pudo iniciar sesión: " + err.message;
+        });
 }
 
 function showAdminPanel() {
@@ -261,7 +283,7 @@ function loadVotesAdmin() {
 
 // --- RANKING ---
 function loadRankingAdmin() {
-    database.ref("ranking").orderByChild("puntaje").limitToLast(15).once("value").then(snap => {
+    database.ref("ranking").once("value").then(snap => {
         const list = document.getElementById("admin-ranking-list");
         list.innerHTML = "";
         let arr = [];
@@ -270,7 +292,8 @@ function loadRankingAdmin() {
             list.innerHTML = "Todavía no hay puntajes guardados. Si jugás y guardás un puntaje y no aparece acá, revisá las reglas de Firebase Realtime Database (deben permitir escritura).";
             return;
         }
-        arr.reverse().forEach(item => {
+        arr.sort((a, b) => (b.puntaje || 0) - (a.puntaje || 0));
+        arr.slice(0, 15).forEach(item => {
             const row = document.createElement("div");
             row.className = "admin-rank-row";
             row.innerHTML = `<span><strong>${item.nombre}</strong> (${item.provincia || "-"})</span><span>${item.puntaje} pts</span>`;
