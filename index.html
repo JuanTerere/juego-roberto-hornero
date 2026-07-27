@@ -20,6 +20,27 @@
     <!-- Firebase SDKs (v10 COMPAT) -->
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
+    <!-- INICIALIZACIÓN DE FIREBASE -->
+    <script>
+      const firebaseConfig = {
+        apiKey: "AIzaSyB8bRUNCpopv-cdpGmGwFnxh0dAvt8NHQg",
+        authDomain: "roberto-hornero.firebaseapp.com",
+        databaseURL: "https://roberto-hornero-default-rtdb.firebaseio.com",
+        projectId: "roberto-hornero",
+        storageBucket: "roberto-hornero.firebasestorage.app",
+        messagingSenderId: "784475548449",
+        appId: "1:784475548449:web:873049cedc8445ff50ac60"
+      };
+
+      // Inicializar Firebase
+      if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+      }
+      
+      // Referencia a la base de datos disponible para game.js
+      const database = firebase.database();
+    </script>
 </head>
 <body>
 
@@ -98,7 +119,7 @@
         <div id="campaign-modal" class="screen modal-overlay">
             <div class="modal-content">
                 <h2>🧉 ¡Sumate a la Campaña!</h2>
-                <p>Roberto Hornero necesita tu ayuda para seguir recorriendo las provincias de Argentina. Con tu aporte, podemos seguir creando más niveles y nuevas aventuras.</p>
+                <p>Roberto Hornero necesita tu ayuda para seguir recorriendo las provincias de Argentina. Con tu aporte, podemos seguir creando más niveles y personajes.</p>
                 <br>
                 <a href="https://link.mercadopago.com.ar/matiasbrizzio" target="_blank" class="btn-mate-lg" style="text-decoration: none;">Invitar un Matecito</a>
                 <button id="btn-close-campaign" class="btn-secondary" style="margin-top: 15px; width: 100%;">Cerrar</button>
