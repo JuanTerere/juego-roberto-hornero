@@ -764,7 +764,7 @@ function onDroneHit(scene, drone) {
 
     updateHUD();
 
-    if (shotsFired >= 12 || energy <= 0) {
+    if (shotsFired >= 10 || energy <= 0) {
         scene.time.delayedCall(500, () => triggerMateBreak());
     }
 }
