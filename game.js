@@ -372,7 +372,7 @@ let gameScene;
 let currentProv;
 
 const GROUND_Y = 712;
-const ROBERTO_SCALE = 0.055;
+const ROBERTO_SCALE = 0.085;
 const ROBERTO_X = 200;
 const NEST_SCALE = 0.18;
 const MUD_SCALE = 0.016;
@@ -1004,6 +1004,13 @@ function renderStars(starCount) {
         const img = document.createElement('img');
         img.src = starFiles[i];
         img.alt = 'Estrella';
+        img.width = 60;
+        img.height = 60;
+        img.style.width = '60px';
+        img.style.height = '60px';
+        img.style.maxWidth = '60px';
+        img.style.maxHeight = '60px';
+        img.style.flexShrink = '0';
         container.appendChild(img);
         setTimeout(() => img.classList.add('pop-in'), i * 450);
     }
