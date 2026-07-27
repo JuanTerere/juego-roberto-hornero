@@ -372,7 +372,7 @@ let gameScene;
 let currentProv;
 
 const GROUND_Y = 712;
-const ROBERTO_SCALE = 0.085;
+const ROBERTO_SCALE = 0.065;
 const ROBERTO_X = 200;
 const NEST_SCALE = 0.18;
 const MUD_SCALE = 0.016;
@@ -745,7 +745,7 @@ function onHit(scene) {
         return;
     }
 
-    if (shotsFired >= 12 || energy <= 0) {
+    if (shotsFired >= 10 || energy <= 0) {
         scene.time.delayedCall(500, () => triggerMateBreak());
     }
 }
