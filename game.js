@@ -119,7 +119,7 @@ const REGIONS_DATA = [
             { id: "mendoza", name: "Mendoza", status: "bloqueada" },
             { id: "sanjuan", name: "San Juan", status: "bloqueada" },
             { id: "sanluis", name: "San Luis", status: "bloqueada" },
-            { id: "larioja", name: "La Rioja", status: "bloqueada" }
+            { id: "larioja", name: "La Rioja", status:  "habilitada", bg: "larioja-catedral" }
         ]
     },
     {
@@ -372,7 +372,7 @@ let gameScene;
 let currentProv;
 
 const GROUND_Y = 712;
-const ROBERTO_SCALE = 0.055;
+const ROBERTO_SCALE = 0.5;
 const ROBERTO_X = 200;
 const NEST_SCALE = 0.18;
 const MUD_SCALE = 0.016;
@@ -595,7 +595,7 @@ function drawAimLine(scene, pointer) {
 }
 
 // Secuencia de lanzamiento tal como la pidió el usuario:
-// pointerdown (apuntar) -> lanza1 | pointerup (dispara) -> lanza2 -> (100ms) lanza3 + SALE EL PROYECTIL -> (400ms) conpala
+// pointerdown (apuntar) -> rh-lanza1 | pointerup (dispara) -> rh-lanza2 -> (100ms) rh-lanza3 + SALE EL PROYECTIL -> (400ms) rh-conpala
 function launchShot(scene, pointer) {
     const dx = pointer.x - LAUNCH_POINT.x;
     const dy = pointer.y - LAUNCH_POINT.y;
@@ -612,10 +612,10 @@ function launchShot(scene, pointer) {
     specialModeArmed = false;
     updateSpecialButtonVisual(scene);
 
-    scene.player.setTexture('rh_lanza2'); // dispara / inicia el impulso
+    scene.player.setTexture('rh-lanza2'); // dispara / inicia el impulso
 
     scene.time.delayedCall(100, () => {
-        scene.player.setTexture('rh_lanza3'); // suelta la pala
+        scene.player.setTexture('rh-lanza3'); // suelta la pala
         if (usingSpecial) {
             AudioEngine.special();
             fireSpecialStars(scene, angle, power);
@@ -627,7 +627,7 @@ function launchShot(scene, pointer) {
     });
 
     scene.time.delayedCall(400, () => {
-        scene.player.setTexture('rh_conpala'); // vuelve a la pose de descanso
+        scene.player.setTexture('rh-conpala'); // vuelve a la pose de descanso
     });
 }
 
