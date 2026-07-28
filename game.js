@@ -171,6 +171,8 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     document.getElementById("btn-save-score").addEventListener("click", () => {
+        const certName = document.getElementById("cert-player-name").value.trim();
+        if (certName) document.getElementById("player-name").value = certName;
         closeModal("game-over-modal");
         openModal("save-data-modal");
     });
@@ -241,7 +243,16 @@ function shareScore() {
     const text = `🏗️ ¡Construí el nido de Roberto Hornero en ${currentProv ? currentProv.name : 'Argentina'} y llevo ${totalAccumulatedScore} puntos! 🇦🇷🐦 ¿Podés superarme?`;
     const url = window.location.href;
     const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text + " " + url)}`;
-    window.open(waUrl, "_blank");
+
+    // En mobile, un <a> "clickeado" a mano es más confiable que window.open() para
+    // pasarle el link a la app de WhatsApp (varios navegadores móviles bloquean window.open aquí).
+    const a = document.createElement('a');
+    a.href = waUrl;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
 }
 
 function lanzarConfetiCelesteYBlanco() {
@@ -372,7 +383,7 @@ let gameScene;
 let currentProv;
 
 const GROUND_Y = 712;
-const ROBERTO_SCALE = 0.055;
+const ROBERTO_SCALE = 0.07;
 const ROBERTO_X = 200;
 const NEST_SCALE = 0.18;
 const MUD_SCALE = 0.016;
@@ -775,7 +786,7 @@ function onMiss(scene) {
     AudioEngine.miss();
     scene.cameras.main.flash(120, 120, 20, 20, false);
 
-    if (shotsFired >= 12 || energy <= 0) {
+    if (shotsFired >= 10 || energy <= 0) {
         scene.time.delayedCall(300, () => triggerMateBreak());
     }
 }
@@ -1066,6 +1077,15 @@ function fitText(ctx, text, maxWidth, baseSize) {
 }
 
 function downloadCertificate() {
+    const nameInput = document.getElementById("cert-player-name");
+    const pName = nameInput ? nameInput.value.trim() : "";
+
+    if (!pName) {
+        showToast("⚠️ Escribí tu nombre arriba antes de generar el certificado");
+        if (nameInput) nameInput.focus();
+        return;
+    }
+
     const cvs = document.getElementById("cert-canvas");
     const ctx = cvs.getContext("2d");
     const img = new Image();
@@ -1081,7 +1101,6 @@ function downloadCertificate() {
 
         ctx.textAlign = "center";
 
-        const pName = (document.getElementById("player-name") && document.getElementById("player-name").value) || "Constructor/a";
         ctx.fillStyle = "#0b2545";
         fitText(ctx, pName, boxWidth, 46);
         ctx.fillText(pName, boxCenterX, 1190);
@@ -1094,10 +1113,38 @@ function downloadCertificate() {
         ctx.font = "bold 42px Arial";
         ctx.fillText(`${score} puntos`, boxCenterX, 1340);
 
-        const link = document.createElement('a');
-        link.download = `Certificado-Roberto-Hornero.png`;
-        link.href = cvs.toDataURL();
-        link.click();
+        cvs.toBlob(async (blob) => {
+            if (!blob) {
+                showToast("No se pudo generar el certificado.");
+                return;
+            }
+            const fileName = "Certificado-Roberto-Hornero.png";
+            const file = new File([blob], fileName, { type: "image/png" });
+
+            // En mobile, compartir el archivo es mucho más confiable que "descargar":
+            // Safari/Chrome móvil muchas veces ignoran el atributo download.
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                try {
+                    await navigator.share({ files: [file], title: "Mi certificado de Roberto Hornero" });
+                    return;
+                } catch (e) {
+                    // el usuario canceló el share o falló: seguimos con el respaldo de abajo
+                }
+            }
+
+            const blobUrl = URL.createObjectURL(blob);
+            const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+            if (isMobile) {
+                // Abrimos la imagen en una pestaña nueva para que puedan mantener presionado y guardarla
+                window.open(blobUrl, "_blank");
+                showToast("Mantené presionada la imagen para guardarla 📲");
+            } else {
+                const link = document.createElement('a');
+                link.download = fileName;
+                link.href = blobUrl;
+                link.click();
+            }
+        }, "image/png");
     };
 
     img.onerror = () => {
