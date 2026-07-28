@@ -86,7 +86,6 @@ function tryLogin() {
                 auth.signOut();
                 return;
             }
-            // onAuthStateChanged se encarga de mostrar el panel
         })
         .catch(err => {
             errEl.textContent = "No se pudo iniciar sesión: " + err.message;
@@ -292,7 +291,7 @@ function loadRankingAdmin() {
             list.innerHTML = "Todavía no hay puntajes guardados. Si jugás y guardás un puntaje y no aparece acá, revisá las reglas de Firebase Realtime Database (deben permitir escritura).";
             return;
         }
-        arr.sort((a, b) => (b.puntaje || 0) - (a.puntaje || 0));
+        arr.sort((a, b) => (Number(b.puntaje) || 0) - (Number(a.puntaje) || 0));
         arr.slice(0, 15).forEach(item => {
             const row = document.createElement("div");
             row.className = "admin-rank-row";
