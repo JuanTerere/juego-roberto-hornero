@@ -92,19 +92,8 @@ const REGIONS_DATA = [
         region: "Región Pampeana",
         provinces: [
             { id: "caba", name: "Ciudad Autónoma de Buenos Aires", status: "bloqueada" },
-            { id: "bsas", name: "Buenos Aires", status: "habilitada", bg: "obelisco-bs-as.png",
-              localidades: [
-                  { id: "bsas-capital", name: "Buenos Aires (Capital)", bg: "obelisco-bs-as.png" },
-                  { id: "bsas-canuelas", name: "Cañuelas" },
-                  { id: "bsas-lobos", name: "Lobos" },
-                  { id: "bsas-smdelmonte", name: "San Miguel del Monte" }
-              ] },
-            { id: "cordoba", name: "Córdoba", status: "habilitada", bg: "catedral-de-cordoba.png",
-              localidades: [
-                  { id: "cordoba-capital", name: "Córdoba Capital", bg: "catedral-de-cordoba.png" },
-                  { id: "cordoba-carlospaz", name: "Villa Carlos Paz" },
-                  { id: "cordoba-cosquin", name: "Cosquín" }
-              ] },
+            { id: "bsas", name: "Buenos Aires", status: "habilitada", bg: "obelisco-bs-as.png" },
+            { id: "cordoba", name: "Córdoba", status: "habilitada", bg: "catedral-de-cordoba.png" },
             { id: "santafe", name: "Santa Fe", status: "votacion" },
             { id: "entrerios", name: "Entre Ríos", status: "bloqueada" },
             { id: "lapampa", name: "La Pampa", status: "bloqueada" }
@@ -113,12 +102,7 @@ const REGIONS_DATA = [
     {
         region: "Norte Grande (NOA y NEA)",
         provinces: [
-            { id: "tucuman", name: "Tucumán", status: "habilitada", bg: "casitade-tucuman.png",
-              localidades: [
-                  { id: "tucuman-capital", name: "San Miguel de Tucumán", bg: "casitade-tucuman.png" },
-                  { id: "tucuman-tafi", name: "Tafí del Valle" },
-                  { id: "tucuman-yerbabuena", name: "Yerba Buena" }
-              ] },
+            { id: "tucuman", name: "Tucumán", status: "habilitada", bg: "casitade-tucuman.png" },
             { id: "misiones", name: "Misiones", status: "votacion" },
             { id: "salta", name: "Salta", status: "bloqueada" },
             { id: "jujuy", name: "Jujuy", status: "bloqueada" },
@@ -191,8 +175,6 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     document.getElementById("btn-save-score").addEventListener("click", () => {
-        const certName = document.getElementById("cert-player-name").value.trim();
-        if (certName) document.getElementById("player-name").value = certName;
         closeModal("game-over-modal");
         openModal("save-data-modal");
     });
@@ -213,7 +195,8 @@ document.addEventListener("DOMContentLoaded", () => {
             showToast("¡Puntaje guardado!");
             closeModal("save-data-modal");
             loadStartDashboards();
-            showScreen("start-screen");
+            openModal("score-saved-modal");
+            loadTop5Ranking();
         }).catch(err => {
             showToast(`Error al guardar en Firebase: ${err.message}`);
             console.error("Error guardando ranking:", err);
@@ -224,6 +207,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.getElementById("btn-share-score").addEventListener("click", shareScore);
     document.getElementById("btn-download-cert").addEventListener("click", downloadCertificate);
+    document.getElementById("btn-back-from-saved").addEventListener("click", () => {
+        closeModal("score-saved-modal");
+        showScreen("start-screen");
+    });
 
     document.getElementById("btn-toggle-music").addEventListener("click", () => {
         const on = AudioEngine.toggleMusic();
@@ -326,15 +313,12 @@ function renderProvincesList() {
         regionObj.provinces.forEach(prov => {
             const row = document.createElement("div");
             const icon = prov.status === "habilitada" ? "🟢" : (prov.status === "votacion" ? "🟡" : "🔒");
+            const levelTag = prov.status === "habilitada" && getLevelForTarget(prov.id) === 2 ? " · 🔥 Nivel 2" : "";
             row.className = `prov-row prov-${prov.status}`;
-            row.innerHTML = `<span>${prov.name}</span><span>${icon}</span>`;
+            row.innerHTML = `<span>${prov.name}${levelTag}</span><span>${icon}</span>`;
 
             if (prov.status === "habilitada") {
-                if (prov.localidades && prov.localidades.length > 0) {
-                    row.addEventListener("click", () => toggleLocalidades(row, prov));
-                } else {
-                    row.addEventListener("click", () => startGamePhaser(prov));
-                }
+                row.addEventListener("click", () => startGamePhaser(prov));
             } else if (prov.status === "votacion") {
                 row.addEventListener("click", () => {
                     database.ref(`votacion/${prov.name}`).transaction(current => (current || 0) + 1)
@@ -350,36 +334,6 @@ function renderProvincesList() {
     });
 }
 
-function toggleLocalidades(provRow, prov) {
-    const existing = provRow.nextElementSibling;
-    if (existing && existing.classList.contains("localidades-panel")) {
-        existing.remove();
-        return;
-    }
-    document.querySelectorAll(".localidades-panel").forEach(p => p.remove());
-
-    const panel = document.createElement("div");
-    panel.className = "localidades-panel";
-
-    prov.localidades.forEach(loc => {
-        const level = getLevelForTarget(loc.id);
-        const locRow = document.createElement("div");
-        locRow.className = "localidad-row";
-        locRow.innerHTML = `<span>📍 ${loc.name}</span><span class="loc-level">${level === 2 ? "🔥 Nivel 2" : "Nivel 1"}</span>`;
-        locRow.addEventListener("click", (e) => {
-            e.stopPropagation();
-            startGamePhaser({
-                id: loc.id,
-                name: loc.name,
-                bg: loc.bg || prov.bg
-            });
-        });
-        panel.appendChild(locRow);
-    });
-
-    provRow.insertAdjacentElement("afterend", panel);
-}
-
 // El selector del formulario de puntaje muestra las 23 provincias + CABA, sin importar su estado en el juego
 function populateProvinceSelect() {
     const select = document.getElementById("player-province");
@@ -393,6 +347,27 @@ function populateProvinceSelect() {
 }
 
 // --- 6. DASHBOARDS Y RANKING ---
+function loadTop5Ranking() {
+    const box = document.getElementById("top5-ranking-list");
+    box.innerHTML = "Cargando...";
+    database.ref("ranking").once("value").then(snap => {
+        let arr = [];
+        if (snap.exists()) snap.forEach(c => arr.push(c.val()));
+        if (arr.length === 0) {
+            box.innerHTML = "Todavía no hay puntajes.";
+            return;
+        }
+        arr.sort((a, b) => (Number(b.puntaje) || 0) - (Number(a.puntaje) || 0));
+        let html = "";
+        arr.slice(0, 5).forEach((item, i) => {
+            html += `<p>#${i + 1} <strong>${item.nombre}</strong> (${item.provincia || "-"}): ${item.puntaje}</p>`;
+        });
+        box.innerHTML = html;
+    }).catch(err => {
+        box.innerHTML = `Error de conexión: ${err.message}`;
+    });
+}
+
 function loadStartDashboards() {
     database.ref("ranking").once("value").then(snap => {
         let allScores = [];
@@ -1142,14 +1117,8 @@ function fitText(ctx, text, maxWidth, baseSize) {
 }
 
 function downloadCertificate() {
-    const nameInput = document.getElementById("cert-player-name");
-    const pName = nameInput ? nameInput.value.trim() : "";
-
-    if (!pName) {
-        showToast("⚠️ Escribí tu nombre arriba antes de generar el certificado");
-        if (nameInput) nameInput.focus();
-        return;
-    }
+    const nameInput = document.getElementById("player-name");
+    const pName = (nameInput ? nameInput.value.trim() : "") || "Constructor/a";
 
     const cvs = document.getElementById("cert-canvas");
     const ctx = cvs.getContext("2d");
