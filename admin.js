@@ -86,6 +86,7 @@ function tryLogin() {
                 auth.signOut();
                 return;
             }
+            // onAuthStateChanged se encarga de mostrar el panel
         })
         .catch(err => {
             errEl.textContent = "No se pudo iniciar sesión: " + err.message;

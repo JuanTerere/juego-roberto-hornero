@@ -454,8 +454,8 @@ function startGamePhaser(prov) {
     mateBreaksCount = 0;
     showScreen(null);
 
-    database.ref('stats/gamesStarted').transaction(c => (c || 0) + 1);
-    database.ref('stats/provinciaPlays/' + prov.id).transaction(c => (c || 0) + 1);
+    database.ref('stats/gamesStarted').transaction(c => (c || 0) + 1).catch(err => console.log('stats (no crítico):', err.message));
+    database.ref('stats/provinciaPlays/' + prov.id).transaction(c => (c || 0) + 1).catch(err => console.log('stats (no crítico):', err.message));
 
     if (game) game.destroy(true);
 
@@ -1089,7 +1089,7 @@ function winGame() {
         completado: true,
         fecha: new Date().toISOString()
     }).catch(err => console.log("No se pudo registrar la sesión:", err));
-    database.ref('stats/gamesCompleted').transaction(c => (c || 0) + 1);
+    database.ref('stats/gamesCompleted').transaction(c => (c || 0) + 1).catch(err => console.log('stats (no crítico):', err.message));
 
     const starCount = computeStars();
     renderStars(starCount);
