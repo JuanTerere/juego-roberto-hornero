@@ -12,7 +12,7 @@
     <meta property="og:type" content="website">
     <meta name="theme-color" content="#74acdf">
 
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="style.css?v=12">
 
     <!-- Phaser 3 CDN -->
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.0/dist/phaser.min.js"></script>
@@ -154,13 +154,9 @@
                 <p>Puntaje total acumulado: <strong id="total-score">0</strong></p>
                 <p id="best-combo-line" class="combo-line"></p>
 
-                <input type="text" id="cert-player-name" placeholder="Escribí tu nombre acá" maxlength="20" class="cert-name-input">
-
                 <div class="game-over-buttons">
-                    <button id="btn-play-more" class="btn-primary">🏗️ Seguir Construyendo</button>
-                    <button id="btn-save-score" class="btn-secondary">💾 Guardar Puntaje</button>
-                    <button id="btn-share-score" class="btn-share">📲 Compartir en WhatsApp</button>
-                    <button id="btn-download-cert" class="btn-cert">🎖️ Descargar Certificado</button>
+                    <button id="btn-save-score" class="btn-primary">💾 Guardar Puntaje</button>
+                    <button id="btn-play-more" class="btn-secondary">🏗️ Seguir Construyendo</button>
                 </div>
             </div>
         </div>
@@ -179,12 +175,25 @@
             </div>
         </div>
 
+        <!-- MODAL POST-GUARDADO: RANKING TOP 5 + CERTIFICADO + COMPARTIR -->
+        <div id="score-saved-modal" class="screen modal-overlay">
+            <div class="modal-content">
+                <h3>🏆 ¡Puntaje guardado!</h3>
+                <div id="top5-ranking-list" class="top5-list">Cargando...</div>
+                <div class="game-over-buttons">
+                    <button id="btn-download-cert" class="btn-cert">🎖️ Descargar Certificado</button>
+                    <button id="btn-share-score" class="btn-share">📲 Compartir en WhatsApp</button>
+                    <button id="btn-back-from-saved" class="btn-secondary">⬅️ Volver al Inicio</button>
+                </div>
+            </div>
+        </div>
+
         <!-- DERECHOS DE AUTOR -->
         <div class="copyright">©Matías Brizzio</div>
     </div>
 
     <canvas id="cert-canvas" style="display:none;"></canvas>
 
-    <script src="game.js"></script>
+    <script src="game.js?v=12"></script>
 </body>
 </html>
