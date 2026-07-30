@@ -25,7 +25,7 @@ let dronesSpawnedCount = 0;
 let nestDefense = 0; // 0..3, cada 3 piedrazos de dron le quita una etapa al nido
 let specialShotAvailable = true;
 let specialModeArmed = false;
-let totalAccumulatedScore = parseInt(localStorage.getItem('rh_total_score') || '0', 10);
+let totalAccumulatedScore = 0; // siempre arranca en 0: no se persiste entre visitas ni jugadores
 
 // --- Estadísticas de la partida (para el panel admin / sponsors) ---
 let gameStartTime = 0;
@@ -192,6 +192,7 @@ document.addEventListener("DOMContentLoaded", () => {
             closeModal("save-data-modal");
             openModal("score-saved-modal");
             loadTop5Ranking();
+            totalAccumulatedScore = 0; // arranca de 0 la próxima partida
         }).catch(err => {
             showToast(`Error al guardar en Firebase: ${err.message}`);
             console.error("Error guardando ranking:", err);
@@ -289,11 +290,11 @@ function loadRegionsAndRender() {
 }
 
 function getLevelForTarget(targetId) {
-    return localStorage.getItem(`rh_completed_${targetId}`) === "1" ? 2 : 1;
+    return 1; // siempre arranca en Nivel 1, sin importar partidas anteriores
 }
 
 function markTargetCompleted(targetId) {
-    localStorage.setItem(`rh_completed_${targetId}`, "1");
+    // no-op: ya no se persiste progreso entre partidas/jugadores
 }
 
 function renderProvincesList() {
@@ -440,7 +441,7 @@ const MUD_SCALE = 0.016;
 const STAR_SCALE = 0.012;       // chispas de partículas en los impactos
 const STAR_PROJECTILE_SCALE = 0.018; // tamaño de cada estrella del disparo especial
 const DRONE_SCALE = 0.13;
-const SPECIAL_BTN = { x: 210, y: 108, radius: 26 };
+const SPECIAL_BTN = { x: 210, y: 122, radius: 26 };
 
 const LAUNCH_POINT = { x: ROBERTO_X, y: GROUND_Y - 150 };
 const NEST_TARGET = { x: 980, y: GROUND_Y - 240, radius: 75 };
@@ -554,8 +555,8 @@ function create() {
     this.barFill = this.add.rectangle(210 - 158, 40, 4, 18, 0x27ae60, 1).setOrigin(0, 0.5).setDepth(12);
     this.stageLabel = this.add.text(210, 14, '🏗️ NIDO', { fontSize: '16px', fontStyle: 'bold', fill: '#f1c40f' }).setOrigin(0.5).setDepth(12);
 
-    this.energyBg = this.add.rectangle(210, 72, 320, 14, 0x0b1a2b, 0.6).setStrokeStyle(2, 0xffffff, 0.4).setDepth(11);
-    this.energyFill = this.add.rectangle(210 - 158, 72, 316, 10, 0xe74c3c, 1).setOrigin(0, 0.5).setDepth(12);
+    this.energyBg = this.add.rectangle(210, 72, 320, 22, 0x0b1a2b, 0.6).setStrokeStyle(2, 0xffffff, 0.4).setDepth(11);
+    this.energyFill = this.add.rectangle(210 - 158, 72, 316, 18, 0xe74c3c, 1).setOrigin(0, 0.5).setDepth(12);
 
     // Botón de disparo especial (estrella titilando debajo de las barras)
     this.specialBtnIcon = this.add.image(SPECIAL_BTN.x, SPECIAL_BTN.y, 'estrella').setDepth(12);
@@ -667,7 +668,7 @@ function launchShot(scene, pointer) {
     const power = dist / MAX_DRAG;
 
     shotsFired++;
-    energy = Math.max(0, energy - 8);
+    energy = Math.max(0, energy - 10);
     updateHUD();
     AudioEngine.launch();
 
