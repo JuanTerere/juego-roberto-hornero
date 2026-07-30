@@ -139,10 +139,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     loadRegionsAndRender();
     loadStartDashboards();
-    // Red de seguridad: en una conexión recién abierta (primera carga, incógnito, etc.)
-    // a veces Firebase entrega una foto incompleta antes de terminar de sincronizar.
-    // Reintentamos una vez más a los 2.5s para asegurarnos de tener los datos reales.
-    setTimeout(loadStartDashboards, 2500);
 
     document.getElementById("btn-play-main").addEventListener("click", () => { AudioEngine.click(); showScreen("province-screen"); });
     document.getElementById("btn-back-menu").addEventListener("click", () => { AudioEngine.click(); showScreen("start-screen"); });
@@ -194,7 +190,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }).then(() => {
             showToast("¡Puntaje guardado!");
             closeModal("save-data-modal");
-            loadStartDashboards();
             openModal("score-saved-modal");
             loadTop5Ranking();
         }).catch(err => {
@@ -369,12 +364,15 @@ function loadTop5Ranking() {
 }
 
 function loadStartDashboards() {
-    database.ref("ranking").once("value").then(snap => {
+    const natBox = document.getElementById("start-national-ranking");
+    const provBox = document.getElementById("start-prov-ranking");
+
+    // .on() en vez de .once(): no es una foto única, es una suscripción en vivo.
+    // Firebase llama a esta función automáticamente apenas hay datos, y de nuevo
+    // cada vez que algo cambia — sin depender de que la primera consulta salga bien.
+    database.ref("ranking").on("value", snap => {
         let allScores = [];
         if (snap.exists()) snap.forEach(c => allScores.push(c.val()));
-
-        const natBox = document.getElementById("start-national-ranking");
-        const provBox = document.getElementById("start-prov-ranking");
 
         if (allScores.length > 0) {
             allScores.sort((a, b) => (Number(b.puntaje) || 0) - (Number(a.puntaje) || 0));
@@ -392,11 +390,25 @@ function loadStartDashboards() {
             natBox.innerHTML = "Aún no hay jugadas";
             provBox.innerHTML = "Aún no hay jugadas";
         }
-    }).catch(err => {
+
+        updateDebugLine(`ranking actualizado ${new Date().toLocaleTimeString('es-AR')} · ${allScores.length} registros`);
+    }, err => {
         console.log("Error de conexión con Firebase:", err);
-        document.getElementById("start-national-ranking").innerHTML = "Sin conexión";
-        document.getElementById("start-prov-ranking").innerHTML = "Sin conexión";
+        natBox.innerHTML = "Sin conexión";
+        provBox.innerHTML = "Sin conexión";
+        updateDebugLine(`ERROR: ${err.message}`);
     });
+}
+
+function updateDebugLine(msg) {
+    let el = document.getElementById("debug-line");
+    if (!el) {
+        el = document.createElement("div");
+        el.id = "debug-line";
+        el.style.cssText = "position:fixed;bottom:2px;left:2px;font-size:10px;color:rgba(255,255,255,0.35);z-index:9999;pointer-events:none;";
+        document.body.appendChild(el);
+    }
+    el.textContent = msg;
 }
 
 function loadPodiumData() {
