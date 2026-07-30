@@ -116,10 +116,10 @@ function loadStats() {
     ]).then(([statsSnap, sessionsSnap, votesSnap, rankingSnap]) => {
         const stats = statsSnap.exists() ? statsSnap.val() : {};
         const sessions = [];
-        if (sessionsSnap.exists()) sessionsSnap.forEach(c => sessions.push(c.val()));
+        if (sessionsSnap.exists()) sessionsSnap.forEach(c => { sessions.push(c.val()); });
         const votes = votesSnap.exists() ? votesSnap.val() : {};
         const rankingArr = [];
-        if (rankingSnap.exists()) rankingSnap.forEach(c => rankingArr.push(c.val()));
+        if (rankingSnap.exists()) rankingSnap.forEach(c => { rankingArr.push(c.val()); });
 
         const gamesStarted = stats.gamesStarted || sessions.length || 0;
         const gamesCompleted = stats.gamesCompleted || sessions.length || 0;
@@ -287,7 +287,7 @@ function loadRankingAdmin() {
         const list = document.getElementById("admin-ranking-list");
         list.innerHTML = "";
         let arr = [];
-        snap.forEach(c => arr.push(c.val()));
+        snap.forEach(c => { arr.push(c.val()); });
         if (arr.length === 0) {
             list.innerHTML = "Todavía no hay puntajes guardados. Si jugás y guardás un puntaje y no aparece acá, revisá las reglas de Firebase Realtime Database (deben permitir escritura).";
             return;

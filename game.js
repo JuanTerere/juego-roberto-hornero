@@ -347,7 +347,7 @@ function loadTop5Ranking() {
     box.innerHTML = "Cargando...";
     database.ref("ranking").once("value").then(snap => {
         let arr = [];
-        if (snap.exists()) snap.forEach(c => arr.push(c.val()));
+        if (snap.exists()) snap.forEach(c => { arr.push(c.val()); });
         if (arr.length === 0) {
             box.innerHTML = "Todavía no hay puntajes.";
             return;
@@ -372,7 +372,7 @@ function loadStartDashboards() {
     // cada vez que algo cambia — sin depender de que la primera consulta salga bien.
     database.ref("ranking").on("value", snap => {
         let allScores = [];
-        if (snap.exists()) snap.forEach(c => allScores.push(c.val()));
+        if (snap.exists()) snap.forEach(c => { allScores.push(c.val()); });
 
         if (allScores.length > 0) {
             allScores.sort((a, b) => (Number(b.puntaje) || 0) - (Number(a.puntaje) || 0));
