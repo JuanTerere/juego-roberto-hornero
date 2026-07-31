@@ -193,6 +193,7 @@ document.addEventListener("DOMContentLoaded", () => {
             openModal("score-saved-modal");
             loadTop5Ranking();
             totalAccumulatedScore = 0; // arranca de 0 la próxima partida
+            resetSessionProgress(); // todas las provincias vuelven a Nivel 1
         }).catch(err => {
             showToast(`Error al guardar en Firebase: ${err.message}`);
             console.error("Error guardando ranking:", err);
@@ -289,12 +290,21 @@ function loadRegionsAndRender() {
     });
 }
 
+// Progreso de nivel por provincia: solo en memoria (no en localStorage), así nunca
+// se persiste entre visitas ni jugadores distintos. Se reinicia al guardar el puntaje.
+let sessionProvinceLevel = {};
+
 function getLevelForTarget(targetId) {
-    return 1; // siempre arranca en Nivel 1, sin importar partidas anteriores
+    return sessionProvinceLevel[targetId] || 1;
 }
 
 function markTargetCompleted(targetId) {
-    // no-op: ya no se persiste progreso entre partidas/jugadores
+    const current = sessionProvinceLevel[targetId] || 1;
+    sessionProvinceLevel[targetId] = Math.min(3, current + 1);
+}
+
+function resetSessionProgress() {
+    sessionProvinceLevel = {};
 }
 
 function renderProvincesList() {
@@ -309,7 +319,8 @@ function renderProvincesList() {
         regionObj.provinces.forEach(prov => {
             const row = document.createElement("div");
             const icon = prov.status === "habilitada" ? "🟢" : (prov.status === "votacion" ? "🟡" : "🔒");
-            const levelTag = prov.status === "habilitada" && getLevelForTarget(prov.id) === 2 ? " · 🔥 Nivel 2" : "";
+            const provLevel = getLevelForTarget(prov.id);
+            const levelTag = prov.status === "habilitada" && provLevel >= 2 ? ` · 🔥 Nivel ${provLevel}` : "";
             row.className = `prov-row prov-${prov.status}`;
             row.innerHTML = `<span>${prov.name}${levelTag}</span><span>${icon}</span>`;
 
@@ -565,7 +576,7 @@ function create() {
     this.scoreText = this.add.text(1260, 24, '🏆 0', { fontSize: '30px', fontStyle: 'bold', fill: '#ffffff' }).setOrigin(1, 0).setDepth(12);
     this.comboText = this.add.text(1260, 60, '', { fontSize: '18px', fontStyle: 'bold', fill: '#f1c40f' }).setOrigin(1, 0).setDepth(12);
 
-    this.provText = this.add.text(20, 22, `📍 ${currentProv.name}${currentLevel >= 2 ? '  🔥 NIVEL 2' : ''}`, { fontSize: '18px', fill: currentLevel >= 2 ? '#e74c3c' : '#ecf0f1', fontStyle: currentLevel >= 2 ? 'bold' : 'normal' }).setDepth(12);
+    this.provText = this.add.text(20, 22, `📍 ${currentProv.name}${currentLevel >= 2 ? `  🔥 NIVEL ${currentLevel}` : ''}`, { fontSize: '18px', fill: currentLevel >= 2 ? '#e74c3c' : '#ecf0f1', fontStyle: currentLevel >= 2 ? 'bold' : 'normal' }).setDepth(12);
 
     updateHUD();
 
@@ -668,7 +679,7 @@ function launchShot(scene, pointer) {
     const power = dist / MAX_DRAG;
 
     shotsFired++;
-    energy = Math.max(0, energy - 10);
+    energy = Math.max(0, energy - 12.5); // 100/8: se agota justo en el disparo 8 (corte de mate/sponsor)
     updateHUD();
     AudioEngine.launch();
 
@@ -1088,7 +1099,6 @@ function renderStars(starCount) {
 function winGame() {
     if (currentProv) markTargetCompleted(currentProv.id);
     totalAccumulatedScore += score;
-    localStorage.setItem('rh_total_score', String(totalAccumulatedScore));
 
     const durationSeconds = Math.round((Date.now() - gameStartTime) / 1000);
     database.ref('sessions').push({
