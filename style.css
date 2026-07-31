@@ -36,7 +36,6 @@ body {
     z-index: 10;
     pointer-events: none;
     overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
 }
 
 .screen {
@@ -91,6 +90,7 @@ button, .btn-wa, a.btn-mate-lg {
     cursor: pointer; border: none; border-radius: 12px; padding: 12px 24px;
     font-size: 1rem; font-weight: bold; text-decoration: none; display: inline-flex;
     align-items: center; justify-content: center; transition: transform 0.1s;
+    touch-action: manipulation;
 }
 button:active, a:active { transform: scale(0.95); }
 .btn-primary { background-color: #27ae60; color: white; }
@@ -242,7 +242,7 @@ button:active, a:active { transform: scale(0.95); }
 .loc-level { font-size: 0.78rem; color: #9fb0c3; }
 
 /* MODALES Y CARGADORES */
-.mate-card, .modal-content { background: #2c3e50; padding: 30px; border-radius: 15px; max-width: 400px; width: 90%; text-align: center; margin: auto; max-height: 90vh; max-height: 90dvh; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; }
+.mate-card, .modal-content { background: #2c3e50; padding: 30px; border-radius: 15px; max-width: 400px; width: 90%; text-align: center; margin: auto; max-height: 90vh; max-height: 90dvh; overflow-y: auto; overflow-x: hidden; touch-action: pan-y; }
 .top5-list { text-align: left; font-size: 0.95rem; margin: 14px 0; }
 .top5-list p { margin: 4px 0; }
 .loader-bar { width: 100%; height: 10px; background: #1a252f; border-radius: 5px; overflow: hidden; margin-top: 20px;}

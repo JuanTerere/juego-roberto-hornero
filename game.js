@@ -1006,6 +1006,7 @@ let mateLoadTimer = null;
 // Dura 10 segundos: +10% de energía por segundo
 function triggerMateBreak() {
     mateBreaksCount++;
+    if (gameScene) gameScene.scene.pause(); // pausa el juego durante el corte de mate
     openModal("mate-break-screen");
     const progress = document.getElementById("loader-progress");
     const energyText = document.getElementById("energy-text");
@@ -1030,7 +1031,10 @@ function triggerMateBreak() {
             specialModeArmed = false;
             if (gameScene) updateSpecialButtonVisual(gameScene);
             updateHUD();
-            setTimeout(() => closeModal("mate-break-screen"), 700);
+            setTimeout(() => {
+                closeModal("mate-break-screen");
+                if (gameScene) gameScene.scene.resume(); // el juego sigue recién al cerrar el modal
+            }, 700);
         }
     }, 1000);
 }
