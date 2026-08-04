@@ -1142,6 +1142,7 @@ function winGame() {
     if (comboLine) comboLine.innerText = bestCombo > 1 ? `🔥 Mejor combo: x${bestCombo}` : '';
 
     openModal("game-over-modal");
+    if (gameScene) gameScene.scene.pause(); // el juego de fondo no debe seguir capturando toques
     lanzarConfetiCelesteYBlanco();
     AudioEngine.win();
 }
