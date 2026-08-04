@@ -26,6 +26,7 @@ let nestDefense = 0; // 0..3, cada 3 piedrazos de dron le quita una etapa al nid
 let specialShotAvailable = true;
 let specialModeArmed = false;
 let totalAccumulatedScore = 0; // siempre arranca en 0: no se persiste entre visitas ni jugadores
+let lastSavedScore = 0; // puntaje ya guardado, para el certificado y "Compartir" de la pantalla final
 
 // --- Estadísticas de la partida (para el panel admin / sponsors) ---
 let gameStartTime = 0;
@@ -192,6 +193,7 @@ document.addEventListener("DOMContentLoaded", () => {
             closeModal("save-data-modal");
             openModal("score-saved-modal");
             loadTop5Ranking();
+            lastSavedScore = totalAccumulatedScore; // para el certificado/compartir de esta pantalla
             totalAccumulatedScore = 0; // arranca de 0 la próxima partida
             resetSessionProgress(); // todas las provincias vuelven a Nivel 1
         }).catch(err => {
@@ -223,9 +225,14 @@ document.addEventListener("DOMContentLoaded", () => {
 function showScreen(screenId) {
     document.querySelectorAll(".screen:not(.modal-overlay)").forEach(s => s.classList.remove("active"));
     if (screenId) document.getElementById(screenId).classList.add("active");
+    resetUiScroll();
 }
-function openModal(id) { document.getElementById(id).classList.add("active"); }
-function closeModal(id) { document.getElementById(id).classList.remove("active"); }
+function openModal(id) { document.getElementById(id).classList.add("active"); resetUiScroll(); }
+function closeModal(id) { document.getElementById(id).classList.remove("active"); resetUiScroll(); }
+function resetUiScroll() {
+    const c = document.getElementById("ui-container");
+    if (c) c.scrollTop = 0;
+}
 
 function showToast(msg) {
     let toast = document.getElementById("toast-msg");
@@ -244,7 +251,7 @@ function showToast(msg) {
 }
 
 function shareScore() {
-    const text = `🏗️ ¡Construí el nido de Roberto Hornero en ${currentProv ? currentProv.name : 'Argentina'} y llevo ${totalAccumulatedScore} puntos! 🇦🇷🐦 ¿Podés superarme?`;
+    const text = `🏗️ ¡Construí el nido de Roberto Hornero en ${currentProv ? currentProv.name : 'Argentina'} y llevo ${lastSavedScore} puntos! 🇦🇷🐦 ¿Podés superarme?`;
     const url = window.location.href;
     const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text + " " + url)}`;
 
@@ -441,6 +448,13 @@ function loadPodiumData() {
 // --- 7. MOTOR PHASER 3 (EL JUEGO) ---
 let game;
 let gameScene;
+
+// Precargamos la imagen base del certificado apenas arranca la página, para que
+// al tocar "Descargar Certificado" en mobile no haya ninguna espera async antes de
+// compartir/abrir el archivo (si no, el navegador pierde el "gesto del usuario" y
+// bloquea navigator.share()/window.open() en silencio).
+const certBgImage = new Image();
+certBgImage.src = "assets/img/ui/certificadodepuntos-rh.png";
 let currentProv;
 let currentLevel = 1;
 
@@ -1149,9 +1163,8 @@ function downloadCertificate() {
 
     const cvs = document.getElementById("cert-canvas");
     const ctx = cvs.getContext("2d");
-    const img = new Image();
 
-    img.onload = () => {
+    const drawAndExport = (img) => {
         cvs.width = img.width;
         cvs.height = img.height;
         ctx.drawImage(img, 0, 0);
@@ -1172,7 +1185,7 @@ function downloadCertificate() {
 
         ctx.fillStyle = "#c0392b";
         ctx.font = "bold 42px Arial";
-        ctx.fillText(`${score} puntos`, boxCenterX, 1340);
+        ctx.fillText(`${lastSavedScore} puntos`, boxCenterX, 1340);
 
         cvs.toBlob(async (blob) => {
             if (!blob) {
@@ -1208,9 +1221,13 @@ function downloadCertificate() {
         }, "image/png");
     };
 
-    img.onerror = () => {
-        showToast("No se pudo generar el certificado (falta la imagen base).");
-    };
-
-    img.src = "assets/img/ui/certificadodepuntos-rh.png";
+    if (certBgImage.complete && certBgImage.naturalWidth > 0) {
+        // Ya está precargada: dibujamos y exportamos en el mismo instante del toque (necesario en mobile)
+        drawAndExport(certBgImage);
+    } else {
+        // Todavía no terminó de precargar (poco frecuente): esperamos, aunque en mobile
+        // esto puede hacer que se pierda el gesto del usuario para compartir/abrir.
+        certBgImage.onload = () => drawAndExport(certBgImage);
+        certBgImage.onerror = () => showToast("No se pudo generar el certificado (falta la imagen base).");
+    }
 }
