@@ -1150,7 +1150,7 @@ function winGame() {
     if (comboLine) comboLine.innerText = bestCombo > 1 ? `🔥 Mejor combo: x${bestCombo}` : '';
 
     openModal("game-over-modal");
-    if (gameScene) gameScene.scene.pause(); // el juego de fondo no debe seguir capturando toques
+    if (game) { game.destroy(true); game = null; gameScene = null; } // saca a Phaser del medio: ya no hace falta hasta la próxima partida
     lanzarConfetiCelesteYBlanco();
     AudioEngine.win();
 }
