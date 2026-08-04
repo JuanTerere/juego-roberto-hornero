@@ -166,22 +166,14 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     });
 
-    const btnPlayMore = document.getElementById("btn-play-more");
-    btnPlayMore.addEventListener("touchstart", () => console.log("DEBUG: touchstart en btn-play-more"));
-    btnPlayMore.addEventListener("click", () => {
-        console.log("DEBUG: click en btn-play-more, ejecutando...");
+    document.getElementById("btn-play-more").addEventListener("click", () => {
         closeModal("game-over-modal");
         showScreen("province-screen");
-        console.log("DEBUG: btn-play-more terminado OK");
     });
 
-    const btnSaveScore = document.getElementById("btn-save-score");
-    btnSaveScore.addEventListener("touchstart", () => console.log("DEBUG: touchstart en btn-save-score"));
-    btnSaveScore.addEventListener("click", () => {
-        console.log("DEBUG: click en btn-save-score, ejecutando...");
+    document.getElementById("btn-save-score").addEventListener("click", () => {
         closeModal("game-over-modal");
         openModal("save-data-modal");
-        console.log("DEBUG: btn-save-score terminado OK");
     });
 
     document.getElementById("score-form").addEventListener("submit", (e) => {
