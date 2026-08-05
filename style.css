@@ -99,6 +99,8 @@ button:active, a:active { transform: scale(0.95); }
 .btn-cert { background-color: #8e44ad; color: white; }
 .btn-mate-lg { background-color: #e67e22; color: white; width: 100%; max-width: 450px; font-size: 1.2rem; padding: 15px; margin-bottom: 25px; box-shadow: 0 4px 0 #d35400; text-align: center; pointer-events: auto;}
 .btn-mate-lg:active { transform: translateY(4px); box-shadow: 0 0px 0 #d35400; }
+.btn-biblioteca { background-color: #8e44ad; box-shadow: 0 4px 0 #6c3483; text-decoration: none; }
+.btn-biblioteca:active { transform: translateY(4px); box-shadow: 0 0px 0 #6c3483; }
 
 .main-action { margin-bottom: 15px; }
 .btn-xl { font-size: 1.5rem; padding: 15px 50px; box-shadow: 0 6px 0 #1e8449; }
